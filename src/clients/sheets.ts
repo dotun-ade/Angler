@@ -29,6 +29,18 @@ export class SheetsClient {
     this.sheetId = config.googleSheetId;
   }
 
+  private readonly LOG_HEADERS = [
+    "Run Date",
+    "Articles Processed",
+    "Companies Extracted",
+    "After Deduplication",
+    "Written to CRM",
+    "Gemini Calls Used",
+    "SerpAPI Calls Used",
+    "Run Status",
+    "Notes / Errors",
+  ];
+
   private async ensureLogSheetExists(): Promise<void> {
     const spreadsheet = await this.sheets.spreadsheets.get({
       spreadsheetId: this.sheetId,
@@ -37,42 +49,37 @@ export class SheetsClient {
     const hasLogSheet = sheets.some(
       (s) => s.properties?.title === "Angler Log",
     );
-    if (hasLogSheet) return;
 
-    await this.sheets.spreadsheets.batchUpdate({
-      spreadsheetId: this.sheetId,
-      requestBody: {
-        requests: [
-          {
-            addSheet: {
-              properties: {
-                title: "Angler Log",
+    if (!hasLogSheet) {
+      await this.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: this.sheetId,
+        requestBody: {
+          requests: [
+            {
+              addSheet: {
+                properties: { title: "Angler Log" },
               },
             },
-          },
-        ],
-      },
-    });
+          ],
+        },
+      });
+    }
 
-    // Write column headers immediately after creating the sheet
-    await this.sheets.spreadsheets.values.update({
+    // Always ensure headers are present in row 1 — covers both new sheets
+    // and existing sheets that were created before this fix was deployed.
+    const headerRes = await this.sheets.spreadsheets.values.get({
       spreadsheetId: this.sheetId,
       range: "'Angler Log'!A1:I1",
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[
-          "Run Date",
-          "Articles Processed",
-          "Companies Extracted",
-          "After Deduplication",
-          "Written to CRM",
-          "Gemini Calls Used",
-          "SerpAPI Calls Used",
-          "Run Status",
-          "Notes / Errors",
-        ]],
-      },
     });
+    const existingHeader = headerRes.data.values?.[0];
+    if (!existingHeader || existingHeader.length === 0) {
+      await this.sheets.spreadsheets.values.update({
+        spreadsheetId: this.sheetId,
+        range: "'Angler Log'!A1:I1",
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [this.LOG_HEADERS] },
+      });
+    }
   }
 
   async getExistingBusinessNames(): Promise<string[]> {

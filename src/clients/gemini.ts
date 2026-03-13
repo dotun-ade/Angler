@@ -87,6 +87,12 @@ export class GeminiClient {
     return this.genAi.getGenerativeModel({ model: this.modelName });
   }
 
+  private stripJsonFences(text: string): string {
+    // Gemini sometimes wraps JSON in ```json ... ``` or ``` ... ``` despite
+    // being told not to. Strip fences before parsing.
+    return text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+  }
+
   async parseIcpDoc(
     config: AnglerConfig,
     state: AnglerState,
@@ -125,7 +131,7 @@ export class GeminiClient {
       const model = this.getModel();
       const updatedState = registerGeminiCall(state, config.runEnv);
       const result = await model.generateContent(prompt);
-      const text = result.response.text();
+      const text = this.stripJsonFences(result.response.text());
       const parsed = JSON.parse(text) as IcpCriteria;
       return { icp: parsed, state: updatedState };
     } catch (error) {
@@ -188,7 +194,7 @@ export class GeminiClient {
       try {
         workingState = registerGeminiCall(workingState, config.runEnv);
         const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const text = this.stripJsonFences(result.response.text());
         const parsed = JSON.parse(text) as ExtractedCompany[];
 
         for (const company of parsed) {
@@ -258,7 +264,7 @@ export class GeminiClient {
       try {
         workingState = registerGeminiCall(workingState, config.runEnv);
         const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const text = this.stripJsonFences(result.response.text());
         const parsed = JSON.parse(text) as ScoredCompany[];
 
         for (const company of parsed) {
