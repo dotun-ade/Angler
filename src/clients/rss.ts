@@ -22,7 +22,8 @@ const EDITORIAL_FEEDS: { name: string; url: string }[] = [
   { name: "Future Nexus", url: "https://news.fintechnexus.com/feed/" },
   { name: "Techpoint Africa", url: "https://techpoint.africa/feed/" },
   { name: "WeeTracker", url: "https://weetracker.com/feed/" },
-  { name: "Ventures Africa", url: "https://venturesafrica.com/feed/" },
+  // Ventures Africa returns 526 (Cloudflare SSL error) from Railway's IPs
+  { name: "BusinessDay Nigeria", url: "https://businessday.ng/feed/" },
   { name: "IT News Africa", url: "https://www.itnewsafrica.com/feed/" },
 ];
 
