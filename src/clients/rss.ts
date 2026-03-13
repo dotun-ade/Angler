@@ -10,15 +10,52 @@ export interface ArticleItem {
   source: string;
 }
 
-const FEEDS: { name: string; url: string }[] = [
+// ---------------------------------------------------------------------------
+// Editorial feeds — African & global fintech news
+// ---------------------------------------------------------------------------
+const EDITORIAL_FEEDS: { name: string; url: string }[] = [
   { name: "TechCabal", url: "https://techcabal.com/feed/" },
   { name: "Disrupt Africa", url: "https://disrupt-africa.com/feed/" },
-  // Was /category/fintech/feed/ — that path 404s; main feed used instead
   { name: "Nairametrics", url: "https://nairametrics.com/feed/" },
   { name: "The Fintech Times", url: "https://thefintechtimes.com/feed/" },
-  // Fintech Nexus rebranded to Future Nexus (heyfuturenexus.com) in Feb 2025;
-  // news.fintechnexus.com subdomain appears to still serve content
+  // Fintech Nexus rebranded to Future Nexus in Feb 2025
   { name: "Future Nexus", url: "https://news.fintechnexus.com/feed/" },
+  { name: "Techpoint Africa", url: "https://techpoint.africa/feed/" },
+  { name: "WeeTracker", url: "https://weetracker.com/feed/" },
+  { name: "Ventures Africa", url: "https://venturesafrica.com/feed/" },
+  { name: "IT News Africa", url: "https://www.itnewsafrica.com/feed/" },
+];
+
+// ---------------------------------------------------------------------------
+// Google News RSS — free keyword-based feeds, no API budget consumed.
+// Each query returns ~10 fresh results per day. Queries target Anchor's ICP:
+// African fintechs that need payments, cards, or banking infrastructure.
+// ---------------------------------------------------------------------------
+const GN = (q: string) =>
+  `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
+
+const GOOGLE_NEWS_FEEDS: { name: string; url: string }[] = [
+  {
+    name: "GNews: Africa fintech startup",
+    url: GN("fintech startup Africa"),
+  },
+  {
+    name: "GNews: Africa payments funding",
+    url: GN("payments startup Nigeria OR Kenya OR Ghana funding"),
+  },
+  {
+    name: "GNews: Africa Series A seed",
+    url: GN('"Series A" OR "seed round" Africa startup 2026'),
+  },
+  {
+    name: "GNews: BaaS card issuing Africa",
+    url: GN('"card issuing" OR "banking as a service" OR BaaS Africa'),
+  },
+];
+
+const FEEDS: { name: string; url: string }[] = [
+  ...EDITORIAL_FEEDS,
+  ...GOOGLE_NEWS_FEEDS,
 ];
 
 const parser = new Parser();
