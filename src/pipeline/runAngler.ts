@@ -39,10 +39,21 @@ export async function runAngler(): Promise<void> {
 
     const allArticles = [...rssArticles, ...serpResult.articles];
     articlesProcessed = allArticles.length;
+    console.log(
+      `Articles collected: ${rssArticles.length} from RSS, ${serpResult.articles.length} from SerpAPI — ${articlesProcessed} total`,
+    );
+
+    if (articlesProcessed === 0) {
+      console.log("No new articles to process. Exiting early.");
+      state.last_run = runStartedAt.toISOString();
+      saveState(state);
+      return;
+    }
 
     if (config.runEnv === "development" && articlesProcessed > 10) {
       allArticles.splice(10);
       articlesProcessed = allArticles.length;
+      console.log(`DEV MODE: capped to ${articlesProcessed} articles`);
     }
 
     const { icp, state: stateAfterIcp } = await geminiClient.parseIcpDoc(
@@ -59,15 +70,23 @@ export async function runAngler(): Promise<void> {
       );
     state = stateAfterExtraction;
     companiesExtracted = extracted.length;
+    console.log(`Extraction: ${companiesExtracted} companies found across ${allArticles.length} articles`);
 
     const { scored, state: stateAfterScoring } =
       await geminiClient.scoreCompanies(config, state, icp, extracted);
     state = stateAfterScoring;
 
+    const highCount = scored.filter((c) => c.confidence === "HIGH").length;
+    const medCount = scored.filter((c) => c.confidence === "MEDIUM").length;
+    console.log(`Scoring: ${scored.length} qualified (${highCount} HIGH, ${medCount} MEDIUM)`);
+
     const existingNames = await sheetsClient.getExistingBusinessNames();
+    console.log(`CRM deduplication: checking against ${existingNames.length} existing leads`);
 
     const dedupedToday: typeof scored = [];
     const seenNames: string[] = [];
+    let filteredByCrm = 0;
+    let filteredByBatch = 0;
 
     for (const company of scored) {
       const name = company.company_name;
@@ -80,7 +99,10 @@ export async function runAngler(): Promise<void> {
           break;
         }
       }
-      if (isDuplicateExisting) continue;
+      if (isDuplicateExisting) {
+        filteredByCrm++;
+        continue;
+      }
 
       let isDuplicateToday = false;
       for (const seen of seenNames) {
@@ -90,13 +112,19 @@ export async function runAngler(): Promise<void> {
           break;
         }
       }
-      if (isDuplicateToday) continue;
+      if (isDuplicateToday) {
+        filteredByBatch++;
+        continue;
+      }
 
       seenNames.push(name);
       dedupedToday.push(company);
     }
 
     afterDeduplication = dedupedToday.length;
+    console.log(
+      `Deduplication: ${afterDeduplication} remain (${filteredByCrm} matched CRM, ${filteredByBatch} matched batch)`,
+    );
 
     dedupedToday.sort((a, b) => {
       const confOrder = (c: "HIGH" | "MEDIUM") => (c === "HIGH" ? 0 : 1);

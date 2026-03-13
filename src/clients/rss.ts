@@ -42,13 +42,24 @@ export async function fetchRssArticles(state: AnglerState): Promise<ArticleItem[
   for (const feed of FEEDS) {
     try {
       const parsed = await parser.parseURL(feed.url);
+      let newCount = 0;
+      let skippedProcessed = 0;
+      let skippedOld = 0;
+
       for (const item of parsed.items) {
         const guid = (item.guid as string) || (item.link as string) || "";
         if (!guid) continue;
-        if (state.processed_guids.includes(guid)) continue;
+
+        if (state.processed_guids.includes(guid)) {
+          skippedProcessed++;
+          continue;
+        }
 
         const pubDate = item.pubDate ? new Date(item.pubDate) : undefined;
-        if (!isNewSinceLastRun(pubDate, state.last_run)) continue;
+        if (!isNewSinceLastRun(pubDate, state.last_run)) {
+          skippedOld++;
+          continue;
+        }
 
         articles.push({
           id: guid,
@@ -58,7 +69,12 @@ export async function fetchRssArticles(state: AnglerState): Promise<ArticleItem[
           pubDate: item.pubDate,
           source: feed.name,
         });
+        newCount++;
       }
+
+      console.log(
+        `RSS ${feed.name}: ${newCount} new, ${skippedProcessed} already processed, ${skippedOld} too old`,
+      );
     } catch (error) {
       console.error(`Failed to fetch RSS from ${feed.name}:`, error);
     }
