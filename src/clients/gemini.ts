@@ -6,6 +6,7 @@ import {
   registerGeminiCall,
 } from "../state/state";
 import { ArticleItem } from "./rss";
+import { fetchGoogleDocText } from "./docs";
 
 export interface IcpCriteria {
   target_geographies: string[];
@@ -25,10 +26,29 @@ export interface ExtractedCompany {
   articleDate: string | undefined;
 }
 
+export type PrimaryProduct =
+  | "Cards"
+  | "BaaS"
+  | "Payments"
+  | "Business Banking"
+  | "Virtual Accounts"
+  | "Global Services"
+  | "Digizone";
+
+export const VALID_PRIMARY_PRODUCTS: PrimaryProduct[] = [
+  "Cards",
+  "BaaS",
+  "Payments",
+  "Business Banking",
+  "Virtual Accounts",
+  "Global Services",
+  "Digizone",
+];
+
 export interface ScoredCompany {
   company_name: string;
   confidence: "HIGH" | "MEDIUM";
-  primary_product: "Cards" | "BaaS" | "Payments" | "Business Banking" | "Virtual Accounts";
+  primary_product: PrimaryProduct;
   match_reason: string;
   source_url: string;
   articleId: string | undefined;
@@ -76,7 +96,16 @@ export class GeminiClient {
       return { icp: FALLBACK_ICP, state };
     }
 
-    const docUrl = `https://docs.google.com/document/d/${config.snapperDocId}`;
+    const docText = await fetchGoogleDocText(
+      config.snapperDocId,
+      config.googleServiceAccountJson,
+    );
+
+    if (!docText) {
+      console.warn("Snapper doc unavailable; using fallback ICP criteria. Gemini call skipped.");
+      return { icp: FALLBACK_ICP, state };
+    }
+
     const prompt = [
       "You are reading an ICP (Ideal Customer Profile) analysis document for Anchor, a Nigerian fintech infrastructure company offering banking, payments, and card-issuing APIs.\n",
       "Extract the following as structured JSON:",
@@ -87,7 +116,7 @@ export class GeminiClient {
       '- stage_signals: array of phrases indicating company stage that converts well (e.g. "Series A", "early stage", "recently launched")',
       "",
       "Document:",
-      `<DOC_TEXT>${docUrl}</DOC_TEXT>`,
+      `<DOC_TEXT>${docText}</DOC_TEXT>`,
       "",
       "Return only valid JSON, no explanation.",
     ].join("\n");
@@ -200,6 +229,7 @@ export class GeminiClient {
 
       const model = this.getModel();
       const companiesJson = JSON.stringify(batch);
+      const validProductsList = VALID_PRIMARY_PRODUCTS.map((p) => `"${p}"`).join(", ");
       const prompt = [
         "You are scoring prospective companies for Anchor — a Nigerian fintech infrastructure company offering:",
         "- Virtual USD Cards (card issuing for businesses)",
@@ -207,6 +237,8 @@ export class GeminiClient {
         "- Payments (payins and payouts, Naira)",
         "- Virtual Accounts and Sub-Accounts",
         "- Business Banking",
+        "- Global Services (cross-border / FX products)",
+        "- Digizone (digital goods and services)",
         "",
         "ICP criteria:",
         `<ICP_JSON>${JSON.stringify(icp)}</ICP_JSON>`,
@@ -214,7 +246,7 @@ export class GeminiClient {
         "For each company below, return:",
         "- company_name: as provided",
         "- confidence: HIGH, MEDIUM, or LOW",
-        '- primary_product: the single most likely Anchor product this company would need. Must be exactly one of: ["Cards", "BaaS", "Payments", "Business Banking", "Virtual Accounts"]. Choose "Payments" if unclear between Payments/BaaS.',
+        `- primary_product: the single most likely Anchor product this company would need. Must be exactly one of: [${validProductsList}]. Choose "Payments" if unclear between Payments/BaaS.`,
         "- match_reason: one sentence, max 20 words, explaining why this company is a fit",
         "",
         "Companies:",
@@ -233,26 +265,20 @@ export class GeminiClient {
           if (company.confidence !== "HIGH" && company.confidence !== "MEDIUM") {
             continue;
           }
-          if (
-            ![
-              "Cards",
-              "BaaS",
-              "Payments",
-              "Business Banking",
-              "Virtual Accounts",
-            ].includes(company.primary_product)
-          ) {
+          if (!VALID_PRIMARY_PRODUCTS.includes(company.primary_product)) {
             continue;
           }
 
+          // Match by company_name only — Gemini does not return source_url in
+          // scoring output, so matching on it would always fail and leave
+          // source_url / articleDate undefined.
           const original = companies.find(
-            (c) =>
-              c.company_name === company.company_name &&
-              c.source_url === company.source_url,
+            (c) => c.company_name === company.company_name,
           );
 
           allScored.push({
             ...company,
+            source_url: original?.source_url ?? "",
             articleId: original?.articleId,
             articleDate: original?.articleDate,
           });
