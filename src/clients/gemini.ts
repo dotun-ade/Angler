@@ -21,8 +21,8 @@ export interface ExtractedCompany {
   description: string;
   source_url: string;
   signals: string[];
-  articleId?: string;
-  articleDate?: string;
+  articleId: string | undefined;
+  articleDate: string | undefined;
 }
 
 export interface ScoredCompany {
@@ -31,8 +31,8 @@ export interface ScoredCompany {
   primary_product: "Cards" | "BaaS" | "Payments" | "Business Banking" | "Virtual Accounts";
   match_reason: string;
   source_url: string;
-  articleId?: string;
-  articleDate?: string;
+  articleId: string | undefined;
+  articleDate: string | undefined;
 }
 
 const FALLBACK_ICP: IcpCriteria = {

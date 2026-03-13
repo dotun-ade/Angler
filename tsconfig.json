@@ -6,7 +6,7 @@
     "outDir": "dist",
 
     // Environment Settings
-    "module": "NodeNext",
+    "module": "commonjs",
     "target": "es2020",
     "types": ["node"],
     "lib": ["esnext"],
@@ -31,7 +31,7 @@
     // Recommended Options
     "strict": true,
     "skipLibCheck": true,
-    "moduleResolution": "NodeNext",
+    "moduleResolution": "node",
     "esModuleInterop": true,
     "resolveJsonModule": true
   }

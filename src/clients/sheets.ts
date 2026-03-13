@@ -20,12 +20,11 @@ export class SheetsClient {
 
   constructor(config: AnglerConfig) {
     const credentials = JSON.parse(config.googleServiceAccountJson);
-    const jwt = new google.auth.JWT(
-      credentials.client_email,
-      undefined,
-      credentials.private_key,
-      ["https://www.googleapis.com/auth/spreadsheets"],
-    );
+    const jwt = new google.auth.JWT({
+      email: credentials.client_email,
+      key: credentials.private_key,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
     this.sheets = google.sheets({ version: "v4", auth: jwt });
     this.sheetId = config.googleSheetId;
   }
