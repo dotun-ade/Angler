@@ -1,5 +1,5 @@
 node_modules
 dist
-state/
+/state/
 .DS_Store
 
