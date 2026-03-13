@@ -6,12 +6,22 @@ export interface SerpApiUsage {
   count: number;
 }
 
+export interface SeenCompanyEntry {
+  // Normalised (lowercased, trimmed) company name
+  name: string;
+  // ISO date the company was first evaluated
+  seen_date: string;
+}
+
 export interface AnglerState {
   last_run?: string;
   processed_guids: string[];
   serpapi_calls_today: SerpApiUsage;
   gemini_day?: string;
   gemini_calls_today: number;
+  // Companies already scored in the last 30 days.
+  // We skip re-scoring these unless a fresh event (funding/launch) is detected.
+  seen_companies: SeenCompanyEntry[];
 }
 
 const STATE_PATH = path.resolve(
@@ -44,6 +54,14 @@ function currentGeminiDay(): string {
   return startOfToday.toISOString().slice(0, 10);
 }
 
+const SEEN_COMPANIES_TTL_DAYS = 30;
+
+function cutoffDate(): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - SEEN_COMPANIES_TTL_DAYS);
+  return d.toISOString().slice(0, 10);
+}
+
 export function loadState(): AnglerState {
   try {
     const raw = fs.readFileSync(STATE_PATH, "utf8");
@@ -58,12 +76,19 @@ export function loadState(): AnglerState {
     const geminiCalls =
       storedGeminiDay === currentDay ? parsed.gemini_calls_today : 0;
 
+    // Trim seen_companies to last 30 days on load
+    const cutoff = cutoffDate();
+    const seenCompanies = (parsed.seen_companies || []).filter(
+      (e) => e.seen_date >= cutoff,
+    );
+
     return {
       last_run: parsed.last_run,
       processed_guids: parsed.processed_guids || [],
       serpapi_calls_today: { date: serpDate, count: serpCount },
       gemini_day: storedGeminiDay,
       gemini_calls_today: geminiCalls,
+      seen_companies: seenCompanies,
     };
   } catch {
     return {
@@ -71,6 +96,7 @@ export function loadState(): AnglerState {
       serpapi_calls_today: { date: todayIsoDate(), count: 0 },
       gemini_day: currentGeminiDay(),
       gemini_calls_today: 0,
+      seen_companies: [],
     };
   }
 }

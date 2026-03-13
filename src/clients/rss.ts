@@ -35,10 +35,12 @@ const GN = (q: string) =>
   `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
 
 const GOOGLE_NEWS_FEEDS: { name: string; url: string }[] = [
+  // Broad fintech sweep
   {
     name: "GNews: Africa fintech startup",
     url: GN("fintech startup Africa"),
   },
+  // Funding signals — hottest leads
   {
     name: "GNews: Africa payments funding",
     url: GN("payments startup Nigeria OR Kenya OR Ghana funding"),
@@ -47,9 +49,30 @@ const GOOGLE_NEWS_FEEDS: { name: string; url: string }[] = [
     name: "GNews: Africa Series A seed",
     url: GN('"Series A" OR "seed round" Africa startup 2026'),
   },
+  // Infrastructure-specific
   {
     name: "GNews: BaaS card issuing Africa",
     url: GN('"card issuing" OR "banking as a service" OR BaaS Africa'),
+  },
+  // Product launch signals
+  {
+    name: "GNews: Africa neobank wallet launch",
+    url: GN('"neobank" OR "digital bank" OR "digital wallet" Africa launch 2026'),
+  },
+  // Adjacent high-need verticals
+  {
+    name: "GNews: Africa gig logistics fintech",
+    url: GN('"gig economy" OR "logistics" Africa fintech payments 2026'),
+  },
+  // Virtual cards specifically
+  {
+    name: "GNews: Africa virtual card",
+    url: GN('"virtual card" Africa startup 2026'),
+  },
+  // Lending and BNPL — always need disbursement infrastructure
+  {
+    name: "GNews: Africa lending BNPL",
+    url: GN('"lending" OR "BNPL" OR "buy now pay later" Africa startup funding'),
   },
 ];
 

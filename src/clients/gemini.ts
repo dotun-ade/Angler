@@ -153,9 +153,12 @@ export class GeminiClient {
     const allCompanies: ExtractedCompany[] = [];
     let workingState = state;
 
+    // Batch size of 30: Gemini 2.5 Flash handles this comfortably within
+    // context limits and halves the number of extraction calls needed.
+    const EXTRACTION_BATCH_SIZE = 30;
     const batches: ArticleItem[][] = [];
-    for (let i = 0; i < articles.length; i += 15) {
-      batches.push(articles.slice(i, i + 15));
+    for (let i = 0; i < articles.length; i += EXTRACTION_BATCH_SIZE) {
+      batches.push(articles.slice(i, i + EXTRACTION_BATCH_SIZE));
     }
 
     for (const batch of batches) {

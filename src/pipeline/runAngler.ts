@@ -72,9 +72,8 @@ export async function runAngler(): Promise<void> {
     companiesExtracted = extracted.length;
     console.log(`Extraction: ${companiesExtracted} companies found across ${allArticles.length} articles`);
 
-    // Pre-dedup before scoring: if the same company appeared in multiple
+    // Pre-dedup within batch: if the same company appeared in multiple
     // articles, score it once (keeping the entry with the most signals).
-    // Saves Gemini quota and prevents duplicate leads from a single run.
     const seenExtracted = new Map<string, typeof extracted[number]>();
     for (const company of extracted) {
       const key = company.company_name.toLowerCase().trim();
@@ -83,13 +82,35 @@ export async function runAngler(): Promise<void> {
         seenExtracted.set(key, company);
       }
     }
-    const uniqueExtracted = Array.from(seenExtracted.values());
-    if (uniqueExtracted.length < extracted.length) {
-      console.log(`Pre-dedup: ${extracted.length} → ${uniqueExtracted.length} unique companies`);
+    const batchDeduped = Array.from(seenExtracted.values());
+    if (batchDeduped.length < extracted.length) {
+      console.log(`Batch pre-dedup: ${extracted.length} → ${batchDeduped.length} unique companies`);
     }
 
+    // Skip companies we already scored in the last 30 days, UNLESS this
+    // article reports a fresh event (funding or product launch) — that
+    // changes the urgency and warrants a fresh look.
+    const previouslySeen = new Set(state.seen_companies.map((e) => e.name));
+    const toScore = batchDeduped.filter((company) => {
+      const key = company.company_name.toLowerCase().trim();
+      if (!previouslySeen.has(key)) return true;
+      const isFreshEvent =
+        company.event_type === "funding_announcement" ||
+        company.event_type === "product_launch";
+      if (isFreshEvent) {
+        console.log(`Re-scoring ${company.company_name}: fresh ${company.event_type}`);
+        return true;
+      }
+      return false;
+    });
+    const skippedSeen = batchDeduped.length - toScore.length;
+    if (skippedSeen > 0) {
+      console.log(`Seen-companies filter: skipped ${skippedSeen} already-evaluated companies`);
+    }
+    console.log(`Sending ${toScore.length} companies to scoring`);
+
     const { scored, state: stateAfterScoring } =
-      await geminiClient.scoreCompanies(config, state, icp, uniqueExtracted);
+      await geminiClient.scoreCompanies(config, state, icp, toScore);
     state = stateAfterScoring;
 
     const highCount = scored.filter((c) => c.confidence === "HIGH").length;
@@ -100,7 +121,7 @@ export async function runAngler(): Promise<void> {
     console.log(`CRM deduplication: checking against ${existingNames.length} existing leads`);
 
     const dedupedToday: typeof scored = [];
-    const seenNames: string[] = [];
+    const seenThisBatch: string[] = [];
     let filteredByCrm = 0;
     let filteredByBatch = 0;
 
@@ -121,7 +142,7 @@ export async function runAngler(): Promise<void> {
       }
 
       let isDuplicateToday = false;
-      for (const seen of seenNames) {
+      for (const seen of seenThisBatch) {
         const sim = similarityPercentage(seen, name);
         if (sim > 80) {
           isDuplicateToday = true;
@@ -133,7 +154,7 @@ export async function runAngler(): Promise<void> {
         continue;
       }
 
-      seenNames.push(name);
+      seenThisBatch.push(name);
       dedupedToday.push(company);
     }
 
@@ -172,6 +193,13 @@ export async function runAngler(): Promise<void> {
     const processedIds = allArticles.map((a) => a.id);
     state.last_run = runStartedAt.toISOString();
     state.processed_guids = [...state.processed_guids, ...processedIds];
+
+    // Record all scored companies so we don't re-score them tomorrow
+    const newSeenEntries = toScore.map((c) => ({
+      name: c.company_name.toLowerCase().trim(),
+      seen_date: runDateIso,
+    }));
+    state.seen_companies = [...state.seen_companies, ...newSeenEntries];
 
     saveState(state);
   } catch (error) {
