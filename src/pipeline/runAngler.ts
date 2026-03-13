@@ -72,8 +72,24 @@ export async function runAngler(): Promise<void> {
     companiesExtracted = extracted.length;
     console.log(`Extraction: ${companiesExtracted} companies found across ${allArticles.length} articles`);
 
+    // Pre-dedup before scoring: if the same company appeared in multiple
+    // articles, score it once (keeping the entry with the most signals).
+    // Saves Gemini quota and prevents duplicate leads from a single run.
+    const seenExtracted = new Map<string, typeof extracted[number]>();
+    for (const company of extracted) {
+      const key = company.company_name.toLowerCase().trim();
+      const existing = seenExtracted.get(key);
+      if (!existing || company.signals.length > existing.signals.length) {
+        seenExtracted.set(key, company);
+      }
+    }
+    const uniqueExtracted = Array.from(seenExtracted.values());
+    if (uniqueExtracted.length < extracted.length) {
+      console.log(`Pre-dedup: ${extracted.length} → ${uniqueExtracted.length} unique companies`);
+    }
+
     const { scored, state: stateAfterScoring } =
-      await geminiClient.scoreCompanies(config, state, icp, extracted);
+      await geminiClient.scoreCompanies(config, state, icp, uniqueExtracted);
     state = stateAfterScoring;
 
     const highCount = scored.filter((c) => c.confidence === "HIGH").length;
@@ -126,6 +142,7 @@ export async function runAngler(): Promise<void> {
       `Deduplication: ${afterDeduplication} remain (${filteredByCrm} matched CRM, ${filteredByBatch} matched batch)`,
     );
 
+    // Sort: HIGH before MEDIUM, then by article recency within each tier.
     dedupedToday.sort((a, b) => {
       const confOrder = (c: "HIGH" | "MEDIUM") => (c === "HIGH" ? 0 : 1);
       const confDiff = confOrder(a.confidence) - confOrder(b.confidence);
@@ -135,10 +152,19 @@ export async function runAngler(): Promise<void> {
       return dateB - dateA;
     });
 
-    const topTen = dedupedToday.slice(0, 10);
+    // Take ALL HIGH confidence leads — never leave a hot lead behind.
+    // Fill remaining slots with MEDIUM leads up to a daily cap of 20.
+    const DAILY_MEDIUM_CAP = 20;
+    const highLeads = dedupedToday.filter((c) => c.confidence === "HIGH");
+    const mediumLeads = dedupedToday.filter((c) => c.confidence === "MEDIUM");
+    const mediumSlots = Math.max(0, DAILY_MEDIUM_CAP - highLeads.length);
+    const finalLeads = [...highLeads, ...mediumLeads.slice(0, mediumSlots)];
+    console.log(
+      `Final: ${highLeads.length} HIGH (all kept) + ${Math.min(mediumLeads.length, mediumSlots)} of ${mediumLeads.length} MEDIUM = ${finalLeads.length} leads`,
+    );
 
     writtenToCrm = await sheetsClient.appendLeads(
-      topTen,
+      finalLeads,
       runDateIso,
       config.runEnv,
     );

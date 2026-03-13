@@ -16,12 +16,17 @@ export interface IcpCriteria {
   stage_signals: string[];
 }
 
+export type FundingStage = "pre-seed" | "seed" | "Series A" | "Series B+" | "bootstrapped" | null;
+export type EventType = "funding_announcement" | "product_launch" | "expansion" | "partnership" | "other" | null;
+
 export interface ExtractedCompany {
   company_name: string;
   country: string | null;
   description: string;
   source_url: string;
   signals: string[];
+  funding_stage: FundingStage;
+  event_type: EventType;
   articleId: string | undefined;
   articleDate: string | undefined;
 }
@@ -172,23 +177,23 @@ export class GeminiClient {
       const prompt = [
         "You are extracting company mentions from tech news articles to identify prospective customers for Anchor — a Nigerian fintech infrastructure company offering banking, payments, and card-issuing APIs to businesses.",
         "",
-        "For each article below, identify any companies mentioned that:",
-        "- Are building a product or service (not just investors, journalists, or regulators)",
-        "- Appear to be a business that could need payments, virtual card issuing, or banking infrastructure",
+        "For each article, identify companies that are BUILDING a product or service and could plausibly need payments infrastructure, card issuing, or banking APIs. Be inclusive at this stage — scoring happens later.",
         "",
         "For each company found, return:",
-        "- company_name: canonical business name (not a product name unless the company is named after its product)",
+        "- company_name: canonical business name",
         "- country: country of operation or HQ if mentioned, else null",
-        "- description: one sentence from the article describing what the company does, max 25 words",
+        "- description: one sentence describing what the company does, max 25 words",
         "- source_url: the article link",
-        "- signals: array of 1–3 keywords from the article that suggest a payments/banking infrastructure need",
+        "- signals: array of 1–3 keywords suggesting a payments/banking infrastructure need",
+        '- funding_stage: the company\'s funding stage if mentioned, else null. Must be one of: "pre-seed", "seed", "Series A", "Series B+", "bootstrapped", null',
+        '- event_type: the type of news event. Must be one of: "funding_announcement", "product_launch", "expansion", "partnership", "other"',
         "",
-        "Ignore companies that are: traditional banks, regulators, telecoms, journalists, pure software tools with no financial product.",
+        "Skip: traditional banks, central banks, microfinance banks, regulators, telecoms, pure media companies, law firms, investors/VCs.",
         "",
         "Articles:",
         `<ARTICLES_JSON>${articlesJson}</ARTICLES_JSON>`,
         "",
-        "Return a JSON array. One object per company found. Multiple companies per article is fine. If an article mentions no qualifying company, skip it entirely.",
+        "Return a JSON array. Multiple companies per article is fine. If no qualifying company is mentioned, return an empty array.",
       ].join("\n");
 
       try {
@@ -237,28 +242,51 @@ export class GeminiClient {
       const companiesJson = JSON.stringify(batch);
       const validProductsList = VALID_PRIMARY_PRODUCTS.map((p) => `"${p}"`).join(", ");
       const prompt = [
-        "You are scoring prospective companies for Anchor — a Nigerian fintech infrastructure company offering:",
-        "- Virtual USD Cards (card issuing for businesses)",
-        "- BaaS / Deposit Accounts (banking infrastructure for fintechs)",
-        "- Payments (payins and payouts, Naira)",
-        "- Virtual Accounts and Sub-Accounts",
-        "- Business Banking",
-        "- Global Services (cross-border / FX products)",
-        "- Digizone (digital goods and services)",
+        "You are a senior sales manager at Anchor, a Nigerian fintech infrastructure company. You are reviewing a list of companies to decide which ones to add to the sales pipeline.",
         "",
-        "ICP criteria:",
+        "Anchor's products:",
+        "- Payments: Naira payins and payouts via API. Best for: payment apps, lending apps, savings apps, gig platforms disbursing to workers, merchants collecting online.",
+        "- Virtual Accounts / Sub-Accounts: unique account numbers per customer for reconciliation. Best for: marketplaces, aggregators, any company collecting from many payers.",
+        "- BaaS / Deposit Accounts: full banking infrastructure. Best for: fintechs building neobanks, wallets, or financial super-apps.",
+        "- Virtual USD Cards: issue USD cards to businesses or their customers. Works globally. Best for: companies paying international vendors, SaaS tools, import/export businesses, consumer card products.",
+        "- Business Banking: bank accounts for businesses. Best for: startups and SMEs that need a business account.",
+        "- Global Services: cross-border and FX solutions.",
+        "- Digizone: digital goods and airtime/data.",
+        "",
+        "Anchor's core markets: Nigeria, Kenya, Ghana. Cards work globally but Africa-based companies are preferred.",
+        "",
+        "Additional ICP signals from Anchor's latest analysis:",
         `<ICP_JSON>${JSON.stringify(icp)}</ICP_JSON>`,
         "",
-        "For each company below, return:",
-        "- company_name: as provided",
-        "- confidence: HIGH, MEDIUM, or LOW",
-        `- primary_product: the single most likely Anchor product this company would need. Must be exactly one of: [${validProductsList}]. Choose "Payments" if unclear between Payments/BaaS.`,
-        "- match_reason: one sentence, max 20 words, explaining why this company is a fit",
+        "SCORING RULES:",
         "",
-        "Companies:",
+        "Score HIGH if the company clearly needs Anchor's infrastructure AND has a strong timing signal:",
+        "- Operating or launching in Nigeria, Kenya, or Ghana",
+        "- Building a financial product: wallet, payment app, lending, savings, remittance, card product, or any platform that moves money",
+        "- Has a clear trigger: funding_stage is 'seed', 'Series A', or 'Series B+', OR event_type is 'funding_announcement' or 'product_launch'",
+        "- Is a startup or growth-stage company, not a bank, MFB, telco, or large enterprise",
+        "",
+        "Score MEDIUM if the company is a plausible fit but something is unclear or indirect:",
+        "- Right geography but product is adjacent (e-commerce, logistics, HR tech, gig economy) rather than explicitly financial",
+        "- Right product type but geography is outside core markets (South Africa, Egypt, Rwanda, rest of Africa)",
+        "- Clear fit but no timing trigger visible in the article",
+        "- Series B+ with a clear need (may already have infrastructure, but worth a conversation)",
+        "",
+        "Do NOT return companies that are:",
+        "- Traditional banks, microfinance banks, telcos, or large enterprises with their own infrastructure",
+        "- Outside Africa with no clear Africa-facing product",
+        "- Companies where the connection to Anchor's products requires more than one logical step",
+        "",
+        "For each company you include, return:",
+        "- company_name: as provided",
+        "- confidence: HIGH or MEDIUM only",
+        `- primary_product: must be exactly one of [${validProductsList}]`,
+        "- match_reason: one sharp sentence (max 20 words) stating WHY they need Anchor — be specific, not generic",
+        "",
+        "Companies to score:",
         `<COMPANIES_JSON>${companiesJson}</COMPANIES_JSON>`,
         "",
-        "Return only HIGH and MEDIUM confidence results. Do not return LOW confidence companies at all. Return valid JSON array only.",
+        "Return valid JSON array only. Omit LOW confidence companies entirely.",
       ].join("\n");
 
       try {
