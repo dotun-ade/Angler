@@ -57,6 +57,7 @@ export async function fetchSerpApiArticles(
           title: r.title as string,
           description: (r.snippet as string) || "",
           link: r.link as string,
+          pubDate: undefined,
           source: "SerpAPI",
         });
       }

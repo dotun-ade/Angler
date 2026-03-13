@@ -6,7 +6,7 @@ export interface ArticleItem {
   title: string;
   description: string;
   link: string;
-  pubDate: string | undefined;
+  pubDate?: string;
   source: string;
 }
 
