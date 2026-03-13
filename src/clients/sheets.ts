@@ -29,6 +29,32 @@ export class SheetsClient {
     this.sheetId = config.googleSheetId;
   }
 
+  private async ensureLogSheetExists(): Promise<void> {
+    const spreadsheet = await this.sheets.spreadsheets.get({
+      spreadsheetId: this.sheetId,
+    });
+    const sheets = spreadsheet.data.sheets ?? [];
+    const hasLogSheet = sheets.some(
+      (s) => s.properties?.title === "Angler Log",
+    );
+    if (hasLogSheet) return;
+
+    await this.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: this.sheetId,
+      requestBody: {
+        requests: [
+          {
+            addSheet: {
+              properties: {
+                title: "Angler Log",
+              },
+            },
+          },
+        ],
+      },
+    });
+  }
+
   async getExistingBusinessNames(): Promise<string[]> {
     const res = await this.sheets.spreadsheets.values.get({
       spreadsheetId: this.sheetId,
@@ -145,9 +171,10 @@ export class SheetsClient {
     ];
 
     try {
+      await this.ensureLogSheetExists();
       await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.sheetId,
-        range: "Angler Log!A:I",
+        range: "'Angler Log'!A:I",
         valueInputOption: "USER_ENTERED",
         insertDataOption: "INSERT_ROWS",
         requestBody: { values: rows },
