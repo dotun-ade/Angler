@@ -4,3 +4,8 @@ Angler is a researcher who reads the tech news every morning looking for compani
 
 Barnacle fills in the remaining profile fields for each lead Angler creates.
 
+### Deployment notes
+
+- Angler persists its run state and API quotas in a JSON file. Configure a persistent volume in Railway and mount it, then set:
+  - `ANGLER_STATE_PATH=/app/state/angler_state.json` (or similar) so state survives restarts.
+
