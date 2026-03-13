@@ -53,6 +53,26 @@ export class SheetsClient {
         ],
       },
     });
+
+    // Write column headers immediately after creating the sheet
+    await this.sheets.spreadsheets.values.update({
+      spreadsheetId: this.sheetId,
+      range: "'Angler Log'!A1:I1",
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [[
+          "Run Date",
+          "Articles Processed",
+          "Companies Extracted",
+          "After Deduplication",
+          "Written to CRM",
+          "Gemini Calls Used",
+          "SerpAPI Calls Used",
+          "Run Status",
+          "Notes / Errors",
+        ]],
+      },
+    });
   }
 
   async getExistingBusinessNames(): Promise<string[]> {

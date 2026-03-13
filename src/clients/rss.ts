@@ -13,9 +13,12 @@ export interface ArticleItem {
 const FEEDS: { name: string; url: string }[] = [
   { name: "TechCabal", url: "https://techcabal.com/feed/" },
   { name: "Disrupt Africa", url: "https://disrupt-africa.com/feed/" },
-  { name: "Nairametrics Fintech", url: "https://nairametrics.com/category/fintech/feed/" },
+  // Was /category/fintech/feed/ — that path 404s; main feed used instead
+  { name: "Nairametrics", url: "https://nairametrics.com/feed/" },
   { name: "The Fintech Times", url: "https://thefintechtimes.com/feed/" },
-  { name: "Fintech Nexus", url: "https://fintechnexus.com/feed/" },
+  // Fintech Nexus rebranded to Future Nexus (heyfuturenexus.com) in Feb 2025;
+  // news.fintechnexus.com subdomain appears to still serve content
+  { name: "Future Nexus", url: "https://news.fintechnexus.com/feed/" },
 ];
 
 const parser = new Parser();
