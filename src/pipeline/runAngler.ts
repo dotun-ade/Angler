@@ -37,10 +37,23 @@ export async function runAngler(): Promise<void> {
     ]);
     state = serpResult.state;
 
-    const allArticles = [...rssArticles, ...serpResult.articles];
+    // Prioritise by signal quality: SerpAPI (curated) > editorial > GNews
+    // GNews feeds are high-volume but lower signal per article, so they fill
+    // last and are the first to be dropped if the Gemini budget is tight.
+    const editorialArticles = rssArticles.filter(
+      (a) => !a.source.startsWith("GNews:"),
+    );
+    const gnewsArticles = rssArticles.filter((a) =>
+      a.source.startsWith("GNews:"),
+    );
+    const allArticles = [
+      ...serpResult.articles,
+      ...editorialArticles,
+      ...gnewsArticles,
+    ];
     articlesProcessed = allArticles.length;
     console.log(
-      `Articles collected: ${rssArticles.length} from RSS, ${serpResult.articles.length} from SerpAPI — ${articlesProcessed} total`,
+      `Articles collected: ${rssArticles.length} from RSS (${editorialArticles.length} editorial, ${gnewsArticles.length} GNews), ${serpResult.articles.length} from SerpAPI — ${articlesProcessed} total`,
     );
 
     if (articlesProcessed === 0) {
@@ -61,6 +74,25 @@ export async function runAngler(): Promise<void> {
       state,
     );
     state = stateAfterIcp;
+
+    // Reserve Gemini budget for scoring so extraction never starves it.
+    // GEMINI_DAILY_CAP = 20; reserve 2 calls (scoring + 1 safety buffer).
+    // At batch size 30 this allows up to 540 articles on a fresh day.
+    const GEMINI_DAILY_CAP = 20;
+    const GEMINI_RESERVE = 2;
+    const EXTRACTION_BATCH_SIZE = 30;
+    const callsRemaining = GEMINI_DAILY_CAP - state.gemini_calls_today;
+    const extractionBudget = Math.max(0, callsRemaining - GEMINI_RESERVE);
+    const MAX_ARTICLES = extractionBudget * EXTRACTION_BATCH_SIZE;
+    if (allArticles.length > MAX_ARTICLES) {
+      console.log(
+        `Article budget cap: ${allArticles.length} → ${MAX_ARTICLES} articles ` +
+        `(${extractionBudget} extraction calls × ${EXTRACTION_BATCH_SIZE} batch size, ` +
+        `reserving ${GEMINI_RESERVE} calls for scoring)`,
+      );
+      allArticles.splice(MAX_ARTICLES);
+      articlesProcessed = allArticles.length;
+    }
 
     const { companies: extracted, state: stateAfterExtraction } =
       await geminiClient.extractCompaniesFromArticles(
