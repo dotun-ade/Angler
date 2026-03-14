@@ -11,20 +11,24 @@ export interface ArticleItem {
 }
 
 // ---------------------------------------------------------------------------
-// Editorial feeds — African & global fintech news
+// Editorial feeds — African & global fintech/payments news
 // ---------------------------------------------------------------------------
 const EDITORIAL_FEEDS: { name: string; url: string }[] = [
+  // African fintech
   { name: "TechCabal", url: "https://techcabal.com/feed/" },
   { name: "Disrupt Africa", url: "https://disrupt-africa.com/feed/" },
   { name: "Nairametrics", url: "https://nairametrics.com/feed/" },
-  { name: "The Fintech Times", url: "https://thefintechtimes.com/feed/" },
-  // Fintech Nexus rebranded to Future Nexus in Feb 2025
-  { name: "Future Nexus", url: "https://news.fintechnexus.com/feed/" },
   { name: "Techpoint Africa", url: "https://techpoint.africa/feed/" },
   { name: "WeeTracker", url: "https://weetracker.com/feed/" },
   // Ventures Africa returns 526 (Cloudflare SSL error) from Railway's IPs
   { name: "BusinessDay Nigeria", url: "https://businessday.ng/feed/" },
   { name: "IT News Africa", url: "https://www.itnewsafrica.com/feed/" },
+  // Global fintech & payments — captures remittance, cross-border, diaspora
+  { name: "The Fintech Times", url: "https://thefintechtimes.com/feed/" },
+  // Fintech Nexus rebranded to Future Nexus in Feb 2025
+  { name: "Future Nexus", url: "https://news.fintechnexus.com/feed/" },
+  { name: "PYMNTS", url: "https://www.pymnts.com/feed/" },
+  { name: "Finextra", url: "https://www.finextra.com/rss/headlines.aspx" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -36,12 +40,11 @@ const GN = (q: string) =>
   `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
 
 const GOOGLE_NEWS_FEEDS: { name: string; url: string }[] = [
-  // Broad fintech sweep
+  // ── African fintech (local segment) ───────────────────────────────────────
   {
     name: "GNews: Africa fintech startup",
     url: GN("fintech startup Africa"),
   },
-  // Funding signals — hottest leads
   {
     name: "GNews: Africa payments funding",
     url: GN("payments startup Nigeria OR Kenya OR Ghana funding"),
@@ -50,30 +53,55 @@ const GOOGLE_NEWS_FEEDS: { name: string; url: string }[] = [
     name: "GNews: Africa Series A seed",
     url: GN('"Series A" OR "seed round" Africa startup 2026'),
   },
-  // Infrastructure-specific
   {
     name: "GNews: BaaS card issuing Africa",
     url: GN('"card issuing" OR "banking as a service" OR BaaS Africa'),
   },
-  // Product launch signals
   {
     name: "GNews: Africa neobank wallet launch",
     url: GN('"neobank" OR "digital bank" OR "digital wallet" Africa launch 2026'),
   },
-  // Adjacent high-need verticals
   {
     name: "GNews: Africa gig logistics fintech",
     url: GN('"gig economy" OR "logistics" Africa fintech payments 2026'),
   },
-  // Virtual cards specifically
   {
     name: "GNews: Africa virtual card",
     url: GN('"virtual card" Africa startup 2026'),
   },
-  // Lending and BNPL — always need disbursement infrastructure
   {
     name: "GNews: Africa lending BNPL",
     url: GN('"lending" OR "BNPL" OR "buy now pay later" Africa startup funding'),
+  },
+
+  // ── Global remittance & diaspora corridors ───────────────────────────────
+  {
+    name: "GNews: remittance Africa corridor",
+    url: GN('"remittance" OR "money transfer" Africa 2026'),
+  },
+  {
+    name: "GNews: diaspora fintech",
+    url: GN('diaspora fintech OR "send money" Africa Nigeria OR Kenya OR Ghana 2026'),
+  },
+  {
+    name: "GNews: cross-border payments Africa",
+    url: GN('"cross-border payments" OR "cross-border" Africa startup 2026'),
+  },
+
+  // ── USD card issuance / USD-scarce markets ───────────────────────────────
+  {
+    name: "GNews: virtual USD card USD-scarce",
+    url: GN('"virtual dollar card" OR "USD card" Nigeria OR Ghana OR Zimbabwe OR Ethiopia 2026'),
+  },
+
+  // ── Global businesses entering African currencies ─────────────────────────
+  {
+    name: "GNews: global company Africa expansion",
+    url: GN('startup "Africa expansion" OR "entering Africa" OR "African market" launch 2026'),
+  },
+  {
+    name: "GNews: global fintech Africa market entry",
+    url: GN('fintech "Africa" "market entry" OR "expand" OR "launch" 2026'),
   },
 ];
 
@@ -84,19 +112,6 @@ const FEEDS: { name: string; url: string }[] = [
 
 const parser = new Parser();
 
-function isNewSinceLastRun(
-  itemDate: Date | undefined,
-  lastRunIso: string | undefined,
-): boolean {
-  if (!lastRunIso) {
-    const now = new Date();
-    const cutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000);
-    return itemDate ? itemDate >= cutoff : true;
-  }
-  if (!itemDate) return false;
-  return itemDate > new Date(lastRunIso);
-}
-
 export async function fetchRssArticles(state: AnglerState): Promise<ArticleItem[]> {
   const articles: ArticleItem[] = [];
 
@@ -105,7 +120,6 @@ export async function fetchRssArticles(state: AnglerState): Promise<ArticleItem[
       const parsed = await parser.parseURL(feed.url);
       let newCount = 0;
       let skippedProcessed = 0;
-      let skippedOld = 0;
 
       for (const item of parsed.items) {
         const guid = (item.guid as string) || (item.link as string) || "";
@@ -113,12 +127,6 @@ export async function fetchRssArticles(state: AnglerState): Promise<ArticleItem[
 
         if (state.processed_guids.includes(guid)) {
           skippedProcessed++;
-          continue;
-        }
-
-        const pubDate = item.pubDate ? new Date(item.pubDate) : undefined;
-        if (!isNewSinceLastRun(pubDate, state.last_run)) {
-          skippedOld++;
           continue;
         }
 
@@ -134,7 +142,7 @@ export async function fetchRssArticles(state: AnglerState): Promise<ArticleItem[
       }
 
       console.log(
-        `RSS ${feed.name}: ${newCount} new, ${skippedProcessed} already processed, ${skippedOld} too old`,
+        `RSS ${feed.name}: ${newCount} new, ${skippedProcessed} already processed`,
       );
     } catch (error) {
       console.error(`Failed to fetch RSS from ${feed.name}:`, error);

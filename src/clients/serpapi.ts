@@ -4,22 +4,28 @@ import { ArticleItem } from "./rss";
 
 const SERPAPI_ENDPOINT = "https://serpapi.com/search";
 
-// All queries run every day up to the daily cap. Ordered by expected signal
-// quality — highest-value queries first so cap-hits sacrifice the weakest ones.
+// All queries run every day up to the daily cap (8). Ordered by expected
+// signal quality — highest-value queries first so cap-hits drop the weakest.
 const QUERIES: string[] = [
-  // Funding announcements — hottest signal, company just got money to spend
+  // ── African fintechs (local) — hottest signal ─────────────────────────────
+  // Funding = company just got budget to spend on infrastructure
   `fintech startup Africa "Series A" OR "seed" funding 2026`,
   `Nigeria OR Kenya OR Ghana fintech raised funding 2026`,
-  // Product launches in core markets
-  `"payment" OR "wallet" OR "card" startup Africa launch 2026`,
-  // Infrastructure-specific signals
+
+  // ── Global remittance & diaspora corridors ───────────────────────────────
+  // Non-African companies sending money TO Africa are a direct Payments/FX fit
+  `"remittance" OR "money transfer" Africa startup launch OR funding 2026`,
+  `diaspora fintech "send money" Africa OR Nigeria OR Kenya 2026`,
+
+  // ── USD card issuance / USD-scarce markets ───────────────────────────────
+  `"virtual dollar card" OR "USD card" OR "virtual card" Nigeria OR Ghana OR Ethiopia OR Zimbabwe 2026`,
+
+  // ── Global businesses entering African currencies ─────────────────────────
+  `startup "Africa expansion" OR "African market" OR "entering Africa" fintech 2026`,
+
+  // ── Infrastructure & product launch sweeps ──────────────────────────────
   `"BaaS" OR "banking as a service" OR "card issuing" Africa`,
-  `"virtual card" OR "card issuing" startup Africa 2026`,
-  // Adjacent sectors with high payments need
-  `"gig economy" OR "logistics" OR "lending" Africa startup 2026`,
-  // Broader sweep for anything missed above
-  `fintech Nigeria OR Kenya OR Ghana "launched" OR "expanding" 2026`,
-  `"digital wallet" OR "neobank" Africa 2026`,
+  `"digital wallet" OR "neobank" OR "payment" Africa launch 2026`,
 ];
 
 export async function fetchSerpApiArticles(
