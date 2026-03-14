@@ -13,6 +13,18 @@ export interface SeenCompanyEntry {
   seen_date: string;
 }
 
+// Articles that couldn't be processed in the current run due to Gemini budget
+// exhaustion. Carried over to the next run and processed before fresh articles.
+export interface QueuedArticle {
+  id: string;
+  title: string;
+  description: string;
+  link: string;
+  pubDate?: string;
+  source: string;
+  queued_at: string; // ISO datetime — used for TTL pruning
+}
+
 export interface AnglerState {
   last_run?: string;
   processed_guids: string[];
@@ -22,6 +34,9 @@ export interface AnglerState {
   // Companies already scored in the last 30 days.
   // We skip re-scoring these unless a fresh event (funding/launch) is detected.
   seen_companies: SeenCompanyEntry[];
+  // Articles that couldn't be processed this run due to budget constraints.
+  // Prepended to the article list on the next run so they're never lost.
+  article_queue: QueuedArticle[];
 }
 
 const STATE_PATH = path.resolve(
@@ -55,10 +70,11 @@ function currentGeminiDay(): string {
 }
 
 const SEEN_COMPANIES_TTL_DAYS = 30;
+const ARTICLE_QUEUE_TTL_DAYS = 5;
 
-function cutoffDate(): string {
+function cutoffDate(days: number = SEEN_COMPANIES_TTL_DAYS): string {
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() - SEEN_COMPANIES_TTL_DAYS);
+  d.setUTCDate(d.getUTCDate() - days);
   return d.toISOString().slice(0, 10);
 }
 
@@ -77,10 +93,20 @@ export function loadState(): AnglerState {
       storedGeminiDay === currentDay ? parsed.gemini_calls_today : 0;
 
     // Trim seen_companies to last 30 days on load
-    const cutoff = cutoffDate();
+    const seenCutoff = cutoffDate(SEEN_COMPANIES_TTL_DAYS);
     const seenCompanies = (parsed.seen_companies || []).filter(
-      (e) => e.seen_date >= cutoff,
+      (e) => e.seen_date >= seenCutoff,
     );
+
+    // Trim article_queue to last 5 days — stale articles aren't worth processing
+    const queueCutoff = cutoffDate(ARTICLE_QUEUE_TTL_DAYS);
+    const articleQueue = (parsed.article_queue || []).filter(
+      (a) => a.queued_at.slice(0, 10) >= queueCutoff,
+    );
+    if (articleQueue.length < (parsed.article_queue || []).length) {
+      const dropped = (parsed.article_queue || []).length - articleQueue.length;
+      console.log(`Article queue: pruned ${dropped} stale items (>${ARTICLE_QUEUE_TTL_DAYS} days old)`);
+    }
 
     return {
       last_run: parsed.last_run,
@@ -89,6 +115,7 @@ export function loadState(): AnglerState {
       gemini_day: storedGeminiDay,
       gemini_calls_today: geminiCalls,
       seen_companies: seenCompanies,
+      article_queue: articleQueue,
     };
   } catch {
     return {
@@ -97,6 +124,7 @@ export function loadState(): AnglerState {
       gemini_day: currentGeminiDay(),
       gemini_calls_today: 0,
       seen_companies: [],
+      article_queue: [],
     };
   }
 }

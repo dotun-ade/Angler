@@ -1,6 +1,7 @@
 import { loadConfig } from "../utils/config";
 import {
   AnglerState,
+  QueuedArticle,
   loadState,
   saveState,
 } from "../state/state";
@@ -37,23 +38,39 @@ export async function runAngler(): Promise<void> {
     ]);
     state = serpResult.state;
 
-    // Prioritise by signal quality: SerpAPI (curated) > editorial > GNews
-    // GNews feeds are high-volume but lower signal per article, so they fill
-    // last and are the first to be dropped if the Gemini budget is tight.
+    // Prioritise by signal quality: carry-over queue first (already waited once),
+    // then SerpAPI (curated), then editorial RSS, then GNews (high volume / lower
+    // signal). GNews is dropped first when the Gemini budget is tight.
     const editorialArticles = rssArticles.filter(
       (a) => !a.source.startsWith("GNews:"),
     );
     const gnewsArticles = rssArticles.filter((a) =>
       a.source.startsWith("GNews:"),
     );
+
+    // Carry-over articles from previous run(s) that ran out of Gemini budget
+    const queueCarryOver = state.article_queue ?? [];
+    if (queueCarryOver.length > 0) {
+      console.log(`Article queue: ${queueCarryOver.length} carry-over articles from previous run(s)`);
+    }
+
+    // Merge: queue first, then fresh sources. Deduplicate by ID so an article
+    // in the queue that RSS re-encountered doesn't get processed twice.
+    const seenIds = new Set<string>();
     const allArticles = [
+      ...queueCarryOver,
       ...serpResult.articles,
       ...editorialArticles,
       ...gnewsArticles,
-    ];
+    ].filter((a) => {
+      if (seenIds.has(a.id)) return false;
+      seenIds.add(a.id);
+      return true;
+    });
+
     articlesProcessed = allArticles.length;
     console.log(
-      `Articles collected: ${rssArticles.length} from RSS (${editorialArticles.length} editorial, ${gnewsArticles.length} GNews), ${serpResult.articles.length} from SerpAPI — ${articlesProcessed} total`,
+      `Articles collected: ${queueCarryOver.length} queue, ${rssArticles.length} RSS (${editorialArticles.length} editorial, ${gnewsArticles.length} GNews), ${serpResult.articles.length} SerpAPI — ${articlesProcessed} total`,
     );
 
     if (articlesProcessed === 0) {
@@ -85,13 +102,27 @@ export async function runAngler(): Promise<void> {
     const extractionBudget = Math.max(0, callsRemaining - GEMINI_RESERVE);
     const MAX_ARTICLES = extractionBudget * EXTRACTION_BATCH_SIZE;
     if (allArticles.length > MAX_ARTICLES) {
+      const overflow = allArticles.splice(MAX_ARTICLES);
+      articlesProcessed = allArticles.length;
+      const now = new Date().toISOString();
+      const newQueue: QueuedArticle[] = overflow.map((a) => ({
+        id: a.id,
+        title: a.title,
+        description: a.description,
+        link: a.link,
+        pubDate: a.pubDate,
+        source: a.source,
+        queued_at: now,
+      }));
+      state.article_queue = newQueue;
       console.log(
-        `Article budget cap: ${allArticles.length} → ${MAX_ARTICLES} articles ` +
+        `Article budget cap: processing ${allArticles.length}, queuing ${newQueue.length} for tomorrow ` +
         `(${extractionBudget} extraction calls × ${EXTRACTION_BATCH_SIZE} batch size, ` +
         `reserving ${GEMINI_RESERVE} calls for scoring)`,
       );
-      allArticles.splice(MAX_ARTICLES);
-      articlesProcessed = allArticles.length;
+    } else {
+      // No overflow — clear any leftover queue entries that were fully consumed
+      state.article_queue = [];
     }
 
     const { companies: extracted, state: stateAfterExtraction } =
@@ -216,12 +247,16 @@ export async function runAngler(): Promise<void> {
       `Final: ${highLeads.length} HIGH (all kept) + ${Math.min(mediumLeads.length, mediumSlots)} of ${mediumLeads.length} MEDIUM = ${finalLeads.length} leads`,
     );
 
+    // ── CRM write first — leads are never lost even if cleanup throws ─────────
     writtenToCrm = await sheetsClient.appendLeads(
       finalLeads,
       runDateIso,
       config.runEnv,
     );
 
+    // Update state now that leads are safely written.
+    // processed_guids records all articles that went through extraction so
+    // RSS won't re-fetch them. The queue was already set above (overflow or []).
     const processedIds = allArticles.map((a) => a.id);
     state.last_run = runStartedAt.toISOString();
     state.processed_guids = [...state.processed_guids, ...processedIds];
@@ -233,6 +268,9 @@ export async function runAngler(): Promise<void> {
     }));
     state.seen_companies = [...state.seen_companies, ...newSeenEntries];
 
+    // Save state immediately — this persists the queue, processed_guids,
+    // and seen_companies. A crash after this point only loses the log write,
+    // not any lead data.
     saveState(state);
   } catch (error) {
     console.error("Angler run encountered an error:", error);
