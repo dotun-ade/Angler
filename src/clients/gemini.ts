@@ -7,6 +7,14 @@ import {
 } from "../state/state";
 import { ArticleItem } from "./rss";
 import { fetchGoogleDocText } from "./docs";
+import { normaliseIndustry } from "../normalisation/industry";
+import { normaliseCountry } from "../normalisation/country";
+import { normaliseFundingStage } from "../normalisation/funding-stage";
+import { normaliseProduct } from "../normalisation/product";
+import { sanitiseForPrompt } from "../normalisation/sanitise";
+import { isLikelyHeadline } from "../normalisation/headline-detector";
+import { logInfo, logWarn, logError } from "../utils/logger";
+import { industryPromptList, productPromptList } from "../utils/prompt-helpers";
 
 export interface IcpCriteria {
   target_geographies: string[];
@@ -21,6 +29,7 @@ export type EventType = "funding_announcement" | "product_launch" | "expansion" 
 
 export interface ExtractedCompany {
   company_name: string;
+  industry: string | null;   // ← ADDED (Phase 2)
   country: string | null;
   description: string;
   source_url: string;
@@ -103,7 +112,7 @@ export class GeminiClient {
     state: AnglerState,
   ): Promise<{ icp: IcpCriteria; state: AnglerState }> {
     if (!canUseGemini(state, config.runEnv)) {
-      console.log("Gemini quota exceeded; using fallback ICP criteria.");
+      logInfo("Gemini quota exceeded; using fallback ICP criteria.");
       return { icp: FALLBACK_ICP, state };
     }
 
@@ -113,7 +122,7 @@ export class GeminiClient {
     );
 
     if (!docText) {
-      console.warn("Snapper doc unavailable; using fallback ICP criteria. Gemini call skipped.");
+      logWarn("Snapper doc unavailable; using fallback ICP criteria. Gemini call skipped.");
       return { icp: FALLBACK_ICP, state };
     }
 
@@ -140,7 +149,7 @@ export class GeminiClient {
       const parsed = JSON.parse(text) as IcpCriteria;
       return { icp: parsed, state: updatedState };
     } catch (error) {
-      console.error("Gemini ICP parse failed, using fallback ICP criteria.", error);
+      logError("Gemini ICP parse failed, using fallback ICP criteria.", { error: String(error) });
       return { icp: FALLBACK_ICP, state };
     }
   }
@@ -163,16 +172,18 @@ export class GeminiClient {
 
     for (const batch of batches) {
       if (!canUseGemini(workingState, config.runEnv)) {
-        console.log("Gemini quota exceeded during extraction; stopping further batches.");
+        logInfo("Gemini quota exceeded during extraction; stopping further batches.");
         break;
       }
 
       const model = this.getModel();
+
+      // Sanitise article content before injection
       const articlesJson = JSON.stringify(
-        batch.map((a, index) => ({
-          id: index + 1,
-          title: a.title,
-          description: a.description,
+        batch.map((a) => ({
+          id: a.id ?? a.link,
+          title: sanitiseForPrompt(a.title ?? "", 200),
+          description: sanitiseForPrompt(a.description ?? "", 2000),
           link: a.link,
         })),
       );
@@ -184,12 +195,23 @@ export class GeminiClient {
         "",
         "For each company found, return:",
         "- company_name: canonical business name",
-        "- country: country of operation or HQ if mentioned, else null",
+        "- country: ISO 2-letter country code (e.g. NG, KE, ZA, EG) of operation or HQ if mentioned, else null",
         "- description: one sentence describing what the company does, max 25 words",
         "- source_url: the article link",
         "- signals: array of 1–3 keywords suggesting a payments/banking infrastructure need",
         '- funding_stage: the company\'s funding stage if mentioned, else null. Must be one of: "pre-seed", "seed", "Series A", "Series B+", "bootstrapped", null',
         '- event_type: the type of news event. Must be one of: "funding_announcement", "product_launch", "expansion", "partnership", "other"',
+        "- industry: the company's industry. Must be exactly one of:",
+        "<INDUSTRY_LIST>",
+        industryPromptList(),
+        "</INDUSTRY_LIST>",
+        "Use null if none clearly applies.",
+        "",
+        "Disambiguation examples:",
+        "- A SaaS payroll product in Lagos → HR, not Fintech",
+        "- A blockchain supply chain tracker → consider if the core value is logistics; use Web3 only if decentralisation is the product",
+        "- A mobile money platform → Fintech",
+        "- An online store or B2C marketplace → Retail & E-Commerce",
         "",
         "Skip: traditional banks, central banks, microfinance banks, regulators, telecoms, pure media companies, law firms, investors/VCs.",
         "",
@@ -203,18 +225,37 @@ export class GeminiClient {
         workingState = registerGeminiCall(workingState, config.runEnv);
         const result = await model.generateContent(prompt);
         const text = this.stripJsonFences(result.response.text());
-        const parsed = JSON.parse(text) as ExtractedCompany[];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const parsed = JSON.parse(text) as any[];
 
         for (const company of parsed) {
-          const sourceArticle = batch.find((a) => a.link === company.source_url);
-          allCompanies.push({
+          // 1. Reject empty or whitespace-only company names — an empty key
+          //    silently merges entries in dedup and can write blank CRM rows.
+          if (!company.company_name?.trim()) {
+            logWarn("Rejected extraction result: empty company_name", { raw: company });
+            continue;
+          }
+
+          // 2. Reject headlines misidentified as company names
+          if (isLikelyHeadline(company.company_name)) {
+            logWarn("Rejected headline as company name", { name: company.company_name });
+            continue;
+          }
+
+          // 2. Normalise fields
+          const normalisedCompany: ExtractedCompany = {
             ...company,
-            articleId: sourceArticle?.id,
-            articleDate: sourceArticle?.pubDate,
-          });
+            industry: normaliseIndustry(company.industry),
+            country: normaliseCountry(company.country),
+            funding_stage: normaliseFundingStage(company.funding_stage) as FundingStage,
+            articleId: batch.find((a) => a.link === company.source_url)?.id,
+            articleDate: batch.find((a) => a.link === company.source_url)?.pubDate,
+          };
+
+          allCompanies.push(normalisedCompany);
         }
       } catch (error) {
-        console.error("Gemini extraction failed for batch; skipping batch.", error);
+        logError("Gemini extraction failed for batch; skipping batch.", { error: String(error) });
       }
     }
 
@@ -237,24 +278,23 @@ export class GeminiClient {
 
     for (const batch of batches) {
       if (!canUseGemini(workingState, config.runEnv)) {
-        console.log("Gemini quota exceeded during scoring; stopping further batches.");
+        logInfo("Gemini quota exceeded during scoring; stopping further batches.");
         break;
       }
 
       const model = this.getModel();
-      const companiesJson = JSON.stringify(batch);
-      const validProductsList = VALID_PRIMARY_PRODUCTS.map((p) => `"${p}"`).join(", ");
+
+      // Sanitise company names before injection
+      const companiesJson = JSON.stringify(batch.map(c => ({
+        ...c,
+        company_name: sanitiseForPrompt(c.company_name, 150),
+      })));
+
       const prompt = [
         "You are a senior sales manager at Anchor, a Nigerian fintech infrastructure company. You are reviewing a list of companies to decide which ones to add to the sales pipeline.",
         "",
         "Anchor's products:",
-        "- Payments: Naira payins and payouts via API. Best for: payment apps, lending apps, savings apps, gig platforms disbursing to workers, merchants collecting online.",
-        "- Virtual Accounts / Sub-Accounts: unique account numbers per customer for reconciliation. Best for: marketplaces, aggregators, any company collecting from many payers.",
-        "- BaaS / Deposit Accounts: full banking infrastructure. Best for: fintechs building neobanks, wallets, or financial super-apps.",
-        "- Virtual USD Cards: issue USD cards to businesses or their customers. Works globally. Best for: companies paying international vendors, SaaS tools, import/export businesses, consumer card products.",
-        "- Business Banking: bank accounts for businesses. Best for: startups and SMEs that need a business account.",
-        "- Global Services: cross-border and FX solutions.",
-        "- Digizone: digital goods and airtime/data.",
+        productPromptList(),
         "",
         "Anchor's core markets: Nigeria, Kenya, Ghana. Cards work globally but Africa-based companies are preferred.",
         "",
@@ -283,7 +323,7 @@ export class GeminiClient {
         "For each company you include, return:",
         "- company_name: as provided",
         "- confidence: HIGH or MEDIUM only",
-        `- primary_product: must be exactly one of [${validProductsList}]`,
+        "- primary_product: must be exactly one of the products listed above",
         "- match_reason: one sharp sentence (max 20 words) stating WHY they need Anchor — be specific, not generic",
         "",
         "Companies to score:",
@@ -296,36 +336,50 @@ export class GeminiClient {
         workingState = registerGeminiCall(workingState, config.runEnv);
         const result = await model.generateContent(prompt);
         const text = this.stripJsonFences(result.response.text());
-        const parsed = JSON.parse(text) as ScoredCompany[];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const parsed = JSON.parse(text) as any[];
 
         for (const company of parsed) {
+          // Confidence must be exactly HIGH or MEDIUM
           if (company.confidence !== "HIGH" && company.confidence !== "MEDIUM") {
-            continue;
-          }
-          if (!VALID_PRIMARY_PRODUCTS.includes(company.primary_product)) {
+            logWarn("Rejected company: invalid confidence", { name: company.company_name, confidence: company.confidence });
             continue;
           }
 
-          // Match by company_name only — Gemini does not return source_url in
-          // scoring output, so matching on it would always fail and leave
-          // source_url / articleDate undefined.
-          const original = companies.find(
-            (c) => c.company_name === company.company_name,
-          );
+          // Product must be in canonical list
+          const normalisedProduct = normaliseProduct(company.primary_product);
+          if (!normalisedProduct) {
+            logWarn("Rejected company: invalid product", { name: company.company_name, product: company.primary_product });
+            continue;
+          }
+
+          // match_reason must be non-empty
+          if (!company.match_reason || company.match_reason.trim() === "") {
+            logWarn("Rejected company: empty match_reason", { name: company.company_name });
+            continue;
+          }
+
+          const original = companies.find(c => c.company_name === company.company_name);
+
+          // source_url must be present (from original)
+          if (!original?.source_url) {
+            logWarn("Rejected company: no source_url", { name: company.company_name });
+            continue;
+          }
 
           allScored.push({
             ...company,
-            source_url: original?.source_url ?? "",
-            articleId: original?.articleId,
-            articleDate: original?.articleDate,
+            primary_product: normalisedProduct as PrimaryProduct,
+            source_url: original.source_url,
+            articleId: original.articleId,
+            articleDate: original.articleDate,
           });
         }
       } catch (error) {
-        console.error("Gemini scoring failed for batch; skipping batch.", error);
+        logError("Gemini scoring failed for batch; skipping batch.", { error: String(error) });
       }
     }
 
     return { scored: allScored, state: workingState };
   }
 }
-

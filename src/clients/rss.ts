@@ -110,7 +110,10 @@ const FEEDS: { name: string; url: string }[] = [
   ...GOOGLE_NEWS_FEEDS,
 ];
 
-const parser = new Parser();
+// 8 s per feed — prevents one slow/hanging feed from blocking the entire run.
+// Individual feed errors are caught and skipped; the timeout just ensures the
+// catch fires within a predictable window.
+const parser = new Parser({ timeout: 8000 });
 
 export async function fetchRssArticles(state: AnglerState): Promise<ArticleItem[]> {
   const articles: ArticleItem[] = [];

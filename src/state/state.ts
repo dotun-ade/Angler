@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import type { IcpCriteria } from "../clients/gemini";
 
 export interface SerpApiUsage {
   date: string;
@@ -27,6 +28,7 @@ export interface QueuedArticle {
 
 export interface AnglerState {
   last_run?: string;
+  last_run_status?: 'success' | 'partial' | 'failed';
   processed_guids: string[];
   serpapi_calls_today: SerpApiUsage;
   gemini_day?: string;
@@ -37,13 +39,53 @@ export interface AnglerState {
   // Articles that couldn't be processed this run due to budget constraints.
   // Prepended to the article list on the next run so they're never lost.
   article_queue: QueuedArticle[];
+  // ICP criteria from the previous run — used for drift detection.
+  last_icp?: IcpCriteria;
 }
 
 const STATE_PATH = path.resolve(
   process.env.ANGLER_STATE_PATH || "./state/angler_state.json",
 );
+const LOCK_PATH = STATE_PATH + ".lock";
 const SERPAPI_DAILY_CAP = 8;
 const GEMINI_DAILY_CAP = 20;
+
+/**
+ * Acquire a run lock to prevent two concurrent Angler processes from corrupting
+ * the state file. Writes the current PID to LOCK_PATH.
+ *
+ * Returns true if the lock was acquired (caller should run and then call
+ * releaseLock()). Returns false if another process already holds the lock —
+ * caller should exit without running.
+ *
+ * Stale locks (> 30 minutes old) are cleared automatically so a crash doesn't
+ * permanently block future runs.
+ */
+export function acquireLock(): boolean {
+  const STALE_MS = 30 * 60 * 1000; // 30 minutes
+  if (fs.existsSync(LOCK_PATH)) {
+    const stat = fs.statSync(LOCK_PATH);
+    const ageMs = Date.now() - stat.mtimeMs;
+    if (ageMs < STALE_MS) {
+      const pid = fs.readFileSync(LOCK_PATH, "utf8").trim();
+      console.warn(`Angler lock held by PID ${pid} (${Math.round(ageMs / 1000)}s ago). Exiting to avoid state corruption.`);
+      return false;
+    }
+    console.warn(`Clearing stale lock (${Math.round(ageMs / 1000)}s old)`);
+  }
+  const dir = path.dirname(LOCK_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(LOCK_PATH, String(process.pid), "utf8");
+  return true;
+}
+
+export function releaseLock(): void {
+  try {
+    if (fs.existsSync(LOCK_PATH)) fs.unlinkSync(LOCK_PATH);
+  } catch {
+    // Non-fatal — next run will clear a stale lock
+  }
+}
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -51,7 +93,7 @@ function todayIsoDate(): string {
 
 // Gemini day runs from 07:00 UTC to 07:00 UTC.
 // We represent a "Gemini day" by the UTC date of its 07:00 start.
-function currentGeminiDay(): string {
+export function currentGeminiDay(): string {
   const now = new Date();
   const utcYear = now.getUTCFullYear();
   const utcMonth = now.getUTCMonth();

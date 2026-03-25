@@ -43,7 +43,6 @@ export async function fetchSerpApiArticles(
     }
 
     try {
-      workingState = registerSerpApiCall(workingState);
       const res = await axios.get(SERPAPI_ENDPOINT, {
         params: {
           api_key: serpApiKey,
@@ -52,6 +51,9 @@ export async function fetchSerpApiArticles(
           num: 20, // 20 results per query instead of default ~10
         },
       });
+      // Count the call only after a successful HTTP response — a 429 or 5xx
+      // should not consume the daily budget.
+      workingState = registerSerpApiCall(workingState);
 
       const organic = res.data?.organic_results as any[] | undefined;
       if (!organic) {
