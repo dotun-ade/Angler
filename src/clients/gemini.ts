@@ -350,7 +350,7 @@ export class GeminiClient {
         "For each company you include, return:",
         "- company_name: as provided",
         "- confidence: HIGH or MEDIUM only",
-        `- primary_product: must be exactly one of [${validProductsList}]`,
+        `- primary_product: must be exactly one of [${VALID_PRIMARY_PRODUCTS.join(", ")}]`,
         "- match_reason: one sharp sentence (max 20 words) — name the specific Anchor product and why this company needs it",
         "",
         "Companies to score:",
