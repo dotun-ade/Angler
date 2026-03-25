@@ -229,7 +229,14 @@ export class GeminiClient {
         const parsed = JSON.parse(text) as any[];
 
         for (const company of parsed) {
-          // 1. Reject headlines misidentified as company names
+          // 1. Reject empty or whitespace-only company names — an empty key
+          //    silently merges entries in dedup and can write blank CRM rows.
+          if (!company.company_name?.trim()) {
+            logWarn("Rejected extraction result: empty company_name", { raw: company });
+            continue;
+          }
+
+          // 2. Reject headlines misidentified as company names
           if (isLikelyHeadline(company.company_name)) {
             logWarn("Rejected headline as company name", { name: company.company_name });
             continue;

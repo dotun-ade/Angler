@@ -1,6 +1,6 @@
 import { loadConfig } from '../utils/config';
 import { AnglerState, loadState, saveState } from '../state/state';
-import { GeminiClient, ScoredCompany } from '../clients/gemini';
+import { GeminiClient, ScoredCompany, ExtractedCompany } from '../clients/gemini';
 import { SheetsClient } from '../clients/sheets';
 import { logInfo, logError } from '../utils/logger';
 import { fetchArticles } from './fetch-articles';
@@ -10,6 +10,8 @@ import { writeToCrm, writeRunLog } from './write-crm';
 import { planBudget, buildArticleQueue } from '../state/budget';
 import { batchPreDedup, seenCompanyFilter, crmDedup, withinBatchDedup } from './dedup';
 import { ArticleItem } from '../clients/rss';
+import { AuditEntry, createAuditEntry, writeRunAudit } from './audit';
+import { checkAndLogIcpDrift } from '../utils/icp-drift';
 
 export interface RunMetrics {
   articlesProcessed: number;
@@ -50,6 +52,8 @@ export async function runAngler(): Promise<RunMetrics> {
   let articlesToProcess: ArticleItem[] = [];
   // Companies that passed the seen-filter (for state.seen_companies)
   let toScore: ReturnType<typeof seenCompanyFilter>['toScore'] = [];
+  // Audit trail: keyed by company_name for easy lookup and augmentation
+  const auditMap = new Map<string, AuditEntry>();
 
   // ── Stage 1: Fetch ──────────────────────────────────────────────────────
   let allArticles: ArticleItem[];
@@ -87,6 +91,8 @@ export async function runAngler(): Promise<RunMetrics> {
   // ── Stage 2: ICP + budget planning ─────────────────────────────────────
   const { icp, state: stateAfterIcp } = await geminiClient.parseIcpDoc(config, state);
   state = stateAfterIcp;
+  checkAndLogIcpDrift(icp, state.last_icp);
+  state.last_icp = icp;
 
   const { articlesToProcess: budgetedArticles, overflow } = planBudget(allArticles, state, {
     geminiDailyLimit: GEMINI_DAILY_LIMIT,
@@ -109,12 +115,16 @@ export async function runAngler(): Promise<RunMetrics> {
   }
 
   // ── Stage 3: Extraction ─────────────────────────────────────────────────
-  let extracted: ReturnType<typeof batchPreDedup> = [];
+  let extracted: ExtractedCompany[] = [];
   try {
     const result = await extractCompanies(articlesToProcess, config, state, geminiClient);
     state = result.state;
     extracted = result.companies;
     companiesExtracted = extracted.length;
+    // Seed audit map with every extracted company
+    for (const c of extracted) {
+      auditMap.set(c.company_name, createAuditEntry(c, runDateIso));
+    }
   } catch (error) {
     logError('Extraction stage failed', {
       stage: 'extraction',
@@ -132,6 +142,13 @@ export async function runAngler(): Promise<RunMetrics> {
   if (batchDeduped.length < extracted.length) {
     logInfo(`Batch pre-dedup: ${extracted.length} → ${batchDeduped.length} unique companies`);
   }
+  // Mark companies removed by batch pre-dedup
+  for (const c of extracted) {
+    if (!batchDeduped.includes(c)) {
+      const entry = auditMap.get(c.company_name);
+      if (entry) { entry.decision = 'deduped'; entry.reason = 'duplicate within extraction batch'; }
+    }
+  }
 
   const { toScore: toScoreArr, skipped } = seenCompanyFilter(
     batchDeduped,
@@ -139,6 +156,11 @@ export async function runAngler(): Promise<RunMetrics> {
     runDateIso,
   );
   toScore = toScoreArr;
+  // Mark companies skipped by the seen-company filter
+  for (const c of skipped) {
+    const entry = auditMap.get(c.company_name);
+    if (entry) { entry.decision = 'rejected'; entry.reason = 'seen within 30 days (no fresh event)'; }
+  }
 
   if (skipped.length > 0) {
     logInfo(`Seen-companies filter: skipped ${skipped.length} already-evaluated companies`);
@@ -151,6 +173,15 @@ export async function runAngler(): Promise<RunMetrics> {
     const result = await scoreCompanies(toScore, icp, config, state, geminiClient);
     state = result.state;
     scored = result.scored;
+    // Augment audit entries with scoring data
+    for (const s of scored) {
+      const entry = auditMap.get(s.company_name);
+      if (entry) {
+        entry.confidence = s.confidence;
+        entry.primary_product = s.primary_product;
+        entry.match_reason = s.match_reason;
+      }
+    }
   } catch (error) {
     // Never silently drop successfully extracted companies — default to MEDIUM.
     logError('Scoring stage failed; defaulting to MEDIUM confidence', {
@@ -169,6 +200,10 @@ export async function runAngler(): Promise<RunMetrics> {
       articleId: c.articleId,
       articleDate: c.articleDate,
     }));
+    for (const s of scored) {
+      const entry = auditMap.get(s.company_name);
+      if (entry) { entry.confidence = s.confidence; entry.primary_product = s.primary_product; entry.match_reason = s.match_reason; }
+    }
   }
 
   // ── Stage 6: CRM dedup ──────────────────────────────────────────────────
@@ -183,6 +218,15 @@ export async function runAngler(): Promise<RunMetrics> {
       `Deduplication: ${batchPassed.length} remain ` +
       `(${crmFiltered.length} matched CRM, ${batchFiltered.length} matched batch)`,
     );
+    // Audit: mark deduped companies
+    for (const c of crmFiltered) {
+      const entry = auditMap.get(c.company_name);
+      if (entry) { entry.decision = 'deduped'; entry.reason = 'matched existing CRM lead'; }
+    }
+    for (const c of batchFiltered) {
+      const entry = auditMap.get(c.company_name);
+      if (entry) { entry.decision = 'deduped'; entry.reason = 'duplicate within run batch'; }
+    }
 
     // Sort HIGH before MEDIUM, then by recency within each tier
     batchPassed.sort((a, b) => {
@@ -200,6 +244,11 @@ export async function runAngler(): Promise<RunMetrics> {
     const mediumSlots = Math.max(0, DAILY_MEDIUM_CAP - highLeads.length);
     finalLeads = [...highLeads, ...mediumLeads.slice(0, mediumSlots)];
     afterDeduplication = finalLeads.length;
+    // Audit: mark MEDIUM leads dropped by cap
+    for (const c of mediumLeads.slice(mediumSlots)) {
+      const entry = auditMap.get(c.company_name);
+      if (entry) { entry.decision = 'rejected'; entry.reason = 'MEDIUM daily cap reached'; }
+    }
     logInfo(
       `Final: ${highLeads.length} HIGH (all kept) + ` +
       `${Math.min(mediumLeads.length, mediumSlots)} of ${mediumLeads.length} MEDIUM = ` +
@@ -239,9 +288,17 @@ export async function runAngler(): Promise<RunMetrics> {
     writtenToCrm = 0;
   }
 
+  // ── Audit: mark written leads + write audit file ────────────────────────
+  for (const c of finalLeads) {
+    const entry = auditMap.get(c.company_name);
+    if (entry) { entry.decision = 'written'; entry.reason = `${c.confidence} confidence — ${c.match_reason}`; }
+  }
+  writeRunAudit(Array.from(auditMap.values()));
+
   // ── State update ────────────────────────────────────────────────────────
   // CRM write happened first — leads are safe even if state save fails.
   state.last_run = runStartedAt.toISOString();
+  state.last_run_status = status;
   state.processed_guids = [...state.processed_guids, ...articlesToProcess.map((a) => a.id)];
   state.seen_companies = [
     ...state.seen_companies,

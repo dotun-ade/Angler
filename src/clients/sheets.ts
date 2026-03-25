@@ -14,6 +14,21 @@ export interface RunLogEntry {
   notes: string;
 }
 
+const RETRY_BACKOFF_MS = [1000, 2000, 4000];
+
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt++;
+      if (attempt >= maxAttempts) throw error;
+      await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS[attempt - 1] ?? 4000));
+    }
+  }
+}
+
 export class SheetsClient {
   private sheets: sheets_v4.Sheets;
   private sheetId: string;
@@ -83,19 +98,23 @@ export class SheetsClient {
   }
 
   async getExistingBusinessNames(): Promise<string[]> {
-    const res = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: this.sheetId,
-      range: "Leads!C:C",
-    });
+    const res = await withRetry(() =>
+      this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.sheetId,
+        range: "Leads!C:C",
+      }),
+    );
     const values = res.data.values || [];
     return values.slice(1).map((row) => (row[0] as string) || "").filter(Boolean);
   }
 
   async getMaxSn(): Promise<number> {
-    const res = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: this.sheetId,
-      range: "Leads!A:A",
-    });
+    const res = await withRetry(() =>
+      this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.sheetId,
+        range: "Leads!A:A",
+      }),
+    );
     const values = res.data.values || [];
     let max = 0;
     for (const row of values.slice(1)) {
@@ -151,35 +170,16 @@ export class SheetsClient {
       return companies.length;
     }
 
-    let attempt = 0;
-    const maxAttempts = 3;
-    const backoffMs = [1000, 2000, 4000];
-
-    while (true) {
-      try {
-        await this.sheets.spreadsheets.values.append({
-          spreadsheetId: this.sheetId,
-          range: "Leads!A:W",
-          valueInputOption: "USER_ENTERED",
-          insertDataOption: "INSERT_ROWS",
-          requestBody: {
-            values: rows,
-          },
-        });
-        return companies.length;
-      } catch (error) {
-        attempt += 1;
-        if (attempt >= maxAttempts) {
-          console.error("Sheets write failure after retries:", error);
-          throw error;
-        }
-        const delay = backoffMs[attempt - 1] ?? 4000;
-        console.warn(
-          `Sheets write failed (attempt ${attempt}), retrying in ${delay}ms...`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
+    await withRetry(() =>
+      this.sheets.spreadsheets.values.append({
+        spreadsheetId: this.sheetId,
+        range: "Leads!A:W",
+        valueInputOption: "USER_ENTERED",
+        insertDataOption: "INSERT_ROWS",
+        requestBody: { values: rows },
+      }),
+    );
+    return companies.length;
   }
 
   async appendRunLog(entry: RunLogEntry): Promise<void> {
