@@ -51,7 +51,7 @@ function todayIsoDate(): string {
 
 // Gemini day runs from 07:00 UTC to 07:00 UTC.
 // We represent a "Gemini day" by the UTC date of its 07:00 start.
-function currentGeminiDay(): string {
+export function currentGeminiDay(): string {
   const now = new Date();
   const utcYear = now.getUTCFullYear();
   const utcMonth = now.getUTCMonth();
