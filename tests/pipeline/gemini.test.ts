@@ -731,6 +731,7 @@ describe('GeminiClient.scoreCompanies', () => {
     event_type: overrides.event_type ?? 'funding_announcement',
     articleId: overrides.articleId ?? 'article-1',
     articleDate: overrides.articleDate ?? '2026-03-25',
+    website: overrides.website ?? null,
   } as ExtractedCompany);
 
   // ── Confidence validation ──────────────────────────────────────────────────
@@ -1048,8 +1049,8 @@ describe('GeminiClient.scoreCompanies', () => {
         makeGeminiScoringResponse([{
           company_name: 'Moniepoint',
           confidence: 'HIGH',
-          primary_product: 'Business Banking',
-          match_reason: 'Expanding SME banking services rapidly.',
+          primary_product: 'BaaS',
+          match_reason: 'Building banking infrastructure for SMEs.',
         }]),
       );
 
@@ -1153,7 +1154,7 @@ describe('GeminiClient.scoreCompanies', () => {
 
       const prompt = mockGenerateContent.mock.calls[0][0] as string;
       // productPromptList() includes entries for each canonical product
-      expect(prompt).toContain('Virtual Accounts');
+      expect(prompt).toContain('Payments');
       expect(prompt).toContain('Digizone');
       expect(prompt).toContain('Global Services');
     });
@@ -1177,21 +1178,21 @@ describe('GeminiClient.scoreCompanies', () => {
   describe('product normalisation on output', () => {
     it('should set primary_product to the normalised canonical form', async () => {
       const client = new GeminiClient(makeConfig());
-      const company = makeExtractedCompany({ company_name: 'VACo' });
+      const company = makeExtractedCompany({ company_name: 'PaymentsCo' });
 
       mockGenerateContent.mockResolvedValue(
         makeGeminiScoringResponse([{
-          company_name: 'VACo',
+          company_name: 'PaymentsCo',
           confidence: 'HIGH',
-          primary_product: 'Virtual Accounts',
-          match_reason: 'Collecting from many payers via virtual accounts.',
+          primary_product: 'Payments',
+          match_reason: 'Processing payments for African fintechs.',
         }]),
       );
 
       const { scored } = await client.scoreCompanies(makeConfig(), makeAllowedState(), FALLBACK_ICP, [company]);
 
       expect(scored).toHaveLength(1);
-      expect(scored[0].primary_product).toBe('Virtual Accounts');
+      expect(scored[0].primary_product).toBe('Payments');
     });
   });
 

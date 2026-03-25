@@ -164,15 +164,13 @@ describe('productPromptList()', () => {
     expect(result).not.toBeUndefined();
   });
 
-  it('contains all 7 Anchor products', () => {
+  it('contains all 5 Anchor products', () => {
     const result = productPromptList();
     const products = [
       'Payments',
-      'Virtual Accounts',
       'BaaS',
       'Cards',
       'Global Services',
-      'Business Banking',
       'Digizone',
     ];
     for (const product of products) {
@@ -183,7 +181,7 @@ describe('productPromptList()', () => {
   it('each product entry has a description', () => {
     const result = productPromptList();
     const lines = result.split('\n').filter((l: string) => l.trim().startsWith('-'));
-    expect(lines.length).toBe(7);
+    expect(lines.length).toBe(5);
     for (const line of lines) {
       // Each product line should have meaningful content beyond just the name
       expect(line.length).toBeGreaterThan(20);
@@ -197,22 +195,12 @@ describe('productPromptList()', () => {
       'Cards',
       'BaaS',
       'Payments',
-      'Business Banking',
-      'Virtual Accounts',
       'Global Services',
       'Digizone',
     ];
     for (const product of canonicalProducts) {
       expect(result).toContain(product);
     }
-  });
-
-  it('Virtual Accounts entry mentions reconciliation or marketplace context', () => {
-    const result = productPromptList();
-    const lines = result.split('\n');
-    const vaLine = lines.find((l: string) => l.includes('Virtual Accounts'));
-    expect(vaLine).toBeDefined();
-    expect(vaLine!.toLowerCase()).toMatch(/reconcil|marketplace|aggregator/);
   });
 
   it('Payments entry mentions African fintechs or disbursing or collecting', () => {

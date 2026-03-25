@@ -102,7 +102,7 @@ export function countryPromptList(): string {
 // ──────────────────────────────────────────────────────────────────────────────
 
 /**
- * Returns a formatted bullet list of Anchor's 7 products with use-case
+ * Returns a formatted bullet list of Anchor's 5 products with use-case
  * descriptions for scoring prompts.
  *
  * Canonical values match what normaliseProduct() returns.
@@ -112,10 +112,6 @@ export function productPromptList(): string {
     [
       'Payments',
       'African fintechs disbursing or collecting payments, gig platforms, wallets, lending apps. Global companies paying workers or customers in Africa.',
-    ],
-    [
-      'Virtual Accounts',
-      'Marketplaces, aggregators, B2B platforms collecting from many payers and reconciling.',
     ],
     [
       'BaaS',
@@ -128,10 +124,6 @@ export function productPromptList(): string {
     [
       'Global Services',
       'Remittance companies sending money to Africa. Import/export businesses needing African currency settlement.',
-    ],
-    [
-      'Business Banking',
-      'Startups and SMEs across Africa needing business accounts.',
     ],
     [
       'Digizone',

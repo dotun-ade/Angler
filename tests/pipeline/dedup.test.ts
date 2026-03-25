@@ -35,6 +35,7 @@ function makeExtracted(
     event_type,
     articleId: undefined,
     articleDate: undefined,
+    website: null,
   };
 }
 
@@ -47,6 +48,9 @@ function makeScored(company_name: string): ScoredCompany {
     source_url: 'https://example.com/article',
     articleId: undefined,
     articleDate: undefined,
+    country: null,
+    industry: null,
+    website: null,
   };
 }
 

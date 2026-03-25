@@ -85,6 +85,7 @@ const mockExtract = jest.fn().mockResolvedValue({
       event_type: 'funding_announcement',
       articleId: 'a1',
       articleDate: '2026-03-25',
+      website: 'https://paystack.com',
     },
     {
       company_name: 'Flutterwave',
@@ -97,6 +98,7 @@ const mockExtract = jest.fn().mockResolvedValue({
       event_type: 'product_launch',
       articleId: 'a2',
       articleDate: '2026-03-25',
+      website: 'https://flutterwave.com',
     },
   ],
   state: {
@@ -119,6 +121,9 @@ const mockScore = jest.fn().mockResolvedValue({
       source_url: 'http://a1',
       articleId: 'a1',
       articleDate: '2026-03-25',
+      country: 'Nigeria',
+      industry: 'Fintech',
+      website: 'https://paystack.com',
     },
     {
       company_name: 'Flutterwave',
@@ -128,6 +133,9 @@ const mockScore = jest.fn().mockResolvedValue({
       source_url: 'http://a2',
       articleId: 'a2',
       articleDate: '2026-03-25',
+      country: 'Nigeria',
+      industry: 'Fintech',
+      website: 'https://flutterwave.com',
     },
   ],
   state: {
@@ -288,8 +296,8 @@ describe('runAngler integration', () => {
       // Score returns same company twice
       mockScore.mockResolvedValueOnce({
         scored: [
-          { company_name: 'Paystack', confidence: 'HIGH', primary_product: 'Payments', match_reason: 'r1', source_url: 'u1', articleId: 'a1', articleDate: '2026-03-25' },
-          { company_name: 'Paystack', confidence: 'MEDIUM', primary_product: 'Cards', match_reason: 'r2', source_url: 'u2', articleId: 'a1', articleDate: '2026-03-25' },
+          { company_name: 'Paystack', confidence: 'HIGH', primary_product: 'Payments', match_reason: 'r1', source_url: 'u1', articleId: 'a1', articleDate: '2026-03-25', country: null, industry: null, website: null },
+          { company_name: 'Paystack', confidence: 'MEDIUM', primary_product: 'Cards', match_reason: 'r2', source_url: 'u2', articleId: 'a1', articleDate: '2026-03-25', country: null, industry: null, website: null },
         ],
         state: { processed_guids: [], serpapi_calls_today: { date: '2026-03-25', count: 1 }, gemini_day: '2026-03-25', gemini_calls_today: 2, seen_companies: [], article_queue: [] },
       });

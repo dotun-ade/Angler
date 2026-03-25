@@ -14,13 +14,6 @@ describe('normaliseProduct', () => {
     expect(normaliseProduct('Payments')).toBe('Payments');
   });
 
-  it('returns "Business Banking" for exact canonical "Business Banking"', () => {
-    expect(normaliseProduct('Business Banking')).toBe('Business Banking');
-  });
-
-  it('returns "Virtual Accounts" for exact canonical "Virtual Accounts"', () => {
-    expect(normaliseProduct('Virtual Accounts')).toBe('Virtual Accounts');
-  });
 
   it('returns "Global Services" for exact canonical "Global Services"', () => {
     expect(normaliseProduct('Global Services')).toBe('Global Services');
@@ -43,13 +36,6 @@ describe('normaliseProduct', () => {
     expect(normaliseProduct('payments')).toBe('Payments');
   });
 
-  it('returns "Business Banking" for "business banking" (lowercase)', () => {
-    expect(normaliseProduct('business banking')).toBe('Business Banking');
-  });
-
-  it('returns "Virtual Accounts" for "VIRTUAL ACCOUNTS" (uppercase)', () => {
-    expect(normaliseProduct('VIRTUAL ACCOUNTS')).toBe('Virtual Accounts');
-  });
 
   it('returns "Global Services" for "global services" (lowercase)', () => {
     expect(normaliseProduct('global services')).toBe('Global Services');
@@ -71,13 +57,6 @@ describe('normaliseProduct', () => {
     expect(normaliseProduct('PAYMENTS')).toBe('Payments');
   });
 
-  it('returns "Business Banking" for "Business banking" (mixed case)', () => {
-    expect(normaliseProduct('Business banking')).toBe('Business Banking');
-  });
-
-  it('returns "Virtual Accounts" for "virtual accounts" (lowercase)', () => {
-    expect(normaliseProduct('virtual accounts')).toBe('Virtual Accounts');
-  });
 
   it('returns "Digizone" for "DIGIZONE" (uppercase)', () => {
     expect(normaliseProduct('DIGIZONE')).toBe('Digizone');

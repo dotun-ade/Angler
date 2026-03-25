@@ -2,8 +2,6 @@ const CANONICAL_PRODUCTS = [
   'Cards',
   'BaaS',
   'Payments',
-  'Business Banking',
-  'Virtual Accounts',
   'Global Services',
   'Digizone',
 ] as const;

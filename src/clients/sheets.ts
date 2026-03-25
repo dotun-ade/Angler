@@ -108,22 +108,6 @@ export class SheetsClient {
     return values.slice(1).map((row) => (row[0] as string) || "").filter(Boolean);
   }
 
-  async getMaxSn(): Promise<number> {
-    const res = await withRetry(() =>
-      this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.sheetId,
-        range: "Leads!A:A",
-      }),
-    );
-    const values = res.data.values || [];
-    let max = 0;
-    for (const row of values.slice(1)) {
-      const v = Number(row[0]);
-      if (!Number.isNaN(v) && v > max) max = v;
-    }
-    return max;
-  }
-
   async appendLeads(
     companies: ScoredCompany[],
     runDateIso: string,
@@ -132,13 +116,11 @@ export class SheetsClient {
     if (companies.length === 0) return 0;
 
     const today = runDateIso;
-    const baseSn = await this.getMaxSn();
 
-    const rows = companies.map((company, index) => {
-      const sn = baseSn + index + 1;
-      const notes = `[Angler ${today}] ${company.match_reason}. Source: ${company.source_url}`;
+    const rows = companies.map((company) => {
+      const useCase = `[Angler ${today}] ${company.match_reason}. Source: ${company.source_url}`;
       return [
-        sn, // A S/N
+        "", // A S/N
         "", // B DRI
         company.company_name, // C Business Name (Product Name)
         "", // D Tier
@@ -148,24 +130,24 @@ export class SheetsClient {
         "Lead", // H Status
         company.primary_product, // I Primary Product of Interest
         "", // J Secondary Products of Interest
-        "", // K Industry
+        company.industry ?? "", // K Industry
         "Angler", // L Source
-        "", // M Country (Registered Address)
+        company.country ?? "", // M Country (Registered Address)
         "", // N Est. Annual TTV ($)
         "", // O Global Services Waitlist
         "", // P Upsell
-        "", // Q Use Case
+        useCase, // Q Use Case
         "", // R Contact Person(s) & Designation
         "", // S Contact Email
         "", // T Contact Phone Number
-        notes, // U Notes/Remarks
+        company.website ?? "", // U Notes/Remarks
         "", // V Other Requested Prod. Of Interest
         "", // W Lead Score
       ];
     });
 
     if (runEnv === "development") {
-      console.log("DEV MODE: Would append the following rows to Leads:");
+      console.log("DEV MODE: Would append the following rows to Angler:");
       console.dir(rows, { depth: null });
       return companies.length;
     }
@@ -173,7 +155,7 @@ export class SheetsClient {
     await withRetry(() =>
       this.sheets.spreadsheets.values.append({
         spreadsheetId: this.sheetId,
-        range: "Leads!A:W",
+        range: "Angler!A:W",
         valueInputOption: "USER_ENTERED",
         insertDataOption: "INSERT_ROWS",
         requestBody: { values: rows },

@@ -199,6 +199,9 @@ export async function runAngler(): Promise<RunMetrics> {
       source_url: c.source_url,
       articleId: c.articleId,
       articleDate: c.articleDate,
+      country: c.country ?? null,
+      industry: c.industry ?? null,
+      website: c.website ?? null,
     }));
     for (const s of scored) {
       const entry = auditMap.get(s.company_name);

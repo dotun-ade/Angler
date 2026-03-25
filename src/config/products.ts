@@ -1,10 +1,8 @@
 export const ANCHOR_PRODUCTS = [
   'Payments',
-  'Virtual Accounts',
   'BaaS',
   'Cards',
   'Global Services',
-  'Business Banking',
   'Digizone',
 ] as const;
 

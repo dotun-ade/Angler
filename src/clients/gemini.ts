@@ -38,14 +38,13 @@ export interface ExtractedCompany {
   event_type: EventType;
   articleId: string | undefined;
   articleDate: string | undefined;
+  website: string | null;
 }
 
 export type PrimaryProduct =
   | "Cards"
   | "BaaS"
   | "Payments"
-  | "Business Banking"
-  | "Virtual Accounts"
   | "Global Services"
   | "Digizone";
 
@@ -53,8 +52,6 @@ export const VALID_PRIMARY_PRODUCTS: PrimaryProduct[] = [
   "Cards",
   "BaaS",
   "Payments",
-  "Business Banking",
-  "Virtual Accounts",
   "Global Services",
   "Digizone",
 ];
@@ -67,6 +64,9 @@ export interface ScoredCompany {
   source_url: string;
   articleId: string | undefined;
   articleDate: string | undefined;
+  country: string | null;
+  industry: string | null;
+  website: string | null;
 }
 
 const FALLBACK_ICP: IcpCriteria = {
@@ -206,6 +206,7 @@ export class GeminiClient {
         industryPromptList(),
         "</INDUSTRY_LIST>",
         "Use null if none clearly applies.",
+        "- website: the company's homepage URL if clearly stated or inferable from the article, else null",
         "",
         "Disambiguation examples:",
         "- A SaaS payroll product in Lagos → HR, not Fintech",
@@ -250,6 +251,7 @@ export class GeminiClient {
             funding_stage: normaliseFundingStage(company.funding_stage) as FundingStage,
             articleId: batch.find((a) => a.link === company.source_url)?.id,
             articleDate: batch.find((a) => a.link === company.source_url)?.pubDate,
+            website: company.website ?? null,
           };
 
           allCompanies.push(normalisedCompany);
@@ -299,9 +301,6 @@ export class GeminiClient {
         "  → African fintechs: payment apps, lending, savings, wallets, gig platforms, merchants",
         "  → Global companies disbursing TO Africa: payroll platforms, gig marketplaces, remittance companies paying out in Nigeria/Kenya/Ghana",
         "",
-        "Virtual Accounts / Sub-Accounts:",
-        "  → Any company that needs to collect money from many payers and reconcile: marketplaces, aggregators, crowdfunding, B2B platforms",
-        "",
         "BaaS / Deposit Accounts:",
         "  → Fintechs building neobanks, wallets, or financial super-apps on top of banking infrastructure",
         "",
@@ -315,9 +314,6 @@ export class GeminiClient {
         "  → Import/export businesses needing African currency settlement",
         "  → International companies with African revenue needing FX conversion",
         "",
-        "Business Banking:",
-        "  → Startups and SMEs across Africa needing business accounts",
-        "",
         "Digizone:",
         "  → Digital goods, airtime/data, and utility bill platforms in Africa",
         "",
@@ -327,8 +323,8 @@ export class GeminiClient {
         "SCORING RULES — think in four distinct segments:",
         "",
         "Segment 1 — African fintechs (local):",
-        "  HIGH: Operating in Nigeria, Kenya, or Ghana; building a financial product; seed/Series A funding or fresh product launch",
-        "  MEDIUM: Right product type but no funding trigger, or geography outside core three markets (South Africa, Egypt, Rwanda, rest of Africa)",
+        "  HIGH: Operating in Nigeria, Kenya, Ghana, Senegal, Cameroon, Ivory Coast, Egypt, South Africa, Uganda, Angola, Morocco, DRC, or any XAF/XOF zone country; building a financial product; seed/Series A funding or fresh product launch",
+        "  MEDIUM: Right product type but no funding trigger, or geography outside the listed core markets but still within Africa (Rwanda, Tanzania, Ethiopia, rest of Africa)",
         "",
         "Segment 2 — Global remittance / diaspora corridors:",
         "  HIGH: Company explicitly sending money TO Africa, or building Africa-facing remittance corridor, with recent funding or launch",
@@ -339,7 +335,7 @@ export class GeminiClient {
         "  MEDIUM: Global card issuer expanding to Africa; African company where card need is likely but not stated",
         "",
         "Segment 4 — Global businesses entering African currencies:",
-        "  HIGH: Non-African company explicitly announcing African market entry, African operations, or needing to collect/disburse in Naira/KES/GHS",
+        "  HIGH: Non-African company explicitly announcing African market entry, African operations, or needing to collect/disburse in Naira/KES/GHS/XAF/XOF or any listed African market currency",
         "  MEDIUM: Global company in an adjacent sector (gig economy, e-commerce, SaaS) with Africa in their roadmap or customer base",
         "",
         "ALWAYS EXCLUDE:",
@@ -400,6 +396,9 @@ export class GeminiClient {
             source_url: original.source_url,
             articleId: original.articleId,
             articleDate: original.articleDate,
+            country: original.country ?? null,
+            industry: original.industry ?? null,
+            website: original.website ?? null,
           });
         }
       } catch (error) {
