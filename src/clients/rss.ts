@@ -54,7 +54,7 @@ const GOOGLE_NEWS_FEEDS: { name: string; url: string }[] = [
   },
   {
     name: "GNews: Africa payments funding",
-    url: GN("payments startup Nigeria OR Kenya OR Ghana funding"),
+    url: GN('payments startup Nigeria OR Kenya OR "South Africa" OR Ghana OR Cameroon OR Zambia OR Tanzania OR Morocco OR Egypt funding'),
   },
   {
     name: "GNews: Africa Series A seed",
@@ -88,7 +88,7 @@ const GOOGLE_NEWS_FEEDS: { name: string; url: string }[] = [
   },
   {
     name: "GNews: diaspora fintech",
-    url: GN('diaspora fintech OR "send money" Africa Nigeria OR Kenya OR Ghana 2026'),
+    url: GN('diaspora fintech OR "send money" Nigeria OR Kenya OR "South Africa" OR Ghana OR Cameroon OR Zambia OR Tanzania OR Morocco OR Egypt 2026'),
   },
   {
     name: "GNews: cross-border payments Africa",

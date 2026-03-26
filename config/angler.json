@@ -19,7 +19,7 @@
     ],
     "googleNews": [
       { "url": "https://news.google.com/rss/search?q=fintech%20startup%20Africa&hl=en-US&gl=US&ceid=US:en", "name": "GNews: Africa fintech startup", "priority": 2 },
-      { "url": "https://news.google.com/rss/search?q=payments%20startup%20Nigeria%20OR%20Kenya%20OR%20Ghana%20funding&hl=en-US&gl=US&ceid=US:en", "name": "GNews: Africa payments funding", "priority": 2 },
+      { "url": "https://news.google.com/rss/search?q=payments%20startup%20Nigeria%20OR%20Kenya%20OR%20%22South%20Africa%22%20OR%20Ghana%20OR%20Cameroon%20OR%20Zambia%20OR%20Tanzania%20OR%20Morocco%20OR%20Egypt%20funding&hl=en-US&gl=US&ceid=US:en", "name": "GNews: Africa payments funding", "priority": 2 },
       { "url": "https://news.google.com/rss/search?q=%22Series%20A%22%20OR%20%22seed%20round%22%20Africa%20startup%202026&hl=en-US&gl=US&ceid=US:en", "name": "GNews: Africa Series A seed", "priority": 2 },
       { "url": "https://news.google.com/rss/search?q=%22card%20issuing%22%20OR%20%22banking%20as%20a%20service%22%20OR%20BaaS%20Africa&hl=en-US&gl=US&ceid=US:en", "name": "GNews: BaaS card issuing Africa", "priority": 2 },
       { "url": "https://news.google.com/rss/search?q=%22neobank%22%20OR%20%22digital%20bank%22%20OR%20%22digital%20wallet%22%20Africa%20launch%202026&hl=en-US&gl=US&ceid=US:en", "name": "GNews: Africa neobank wallet launch", "priority": 3 },
@@ -27,7 +27,7 @@
       { "url": "https://news.google.com/rss/search?q=%22virtual%20card%22%20Africa%20startup%202026&hl=en-US&gl=US&ceid=US:en", "name": "GNews: Africa virtual card", "priority": 2 },
       { "url": "https://news.google.com/rss/search?q=%22lending%22%20OR%20%22BNPL%22%20OR%20%22buy%20now%20pay%20later%22%20Africa%20startup%20funding&hl=en-US&gl=US&ceid=US:en", "name": "GNews: Africa lending BNPL", "priority": 3 },
       { "url": "https://news.google.com/rss/search?q=%22remittance%22%20OR%20%22money%20transfer%22%20Africa%202026&hl=en-US&gl=US&ceid=US:en", "name": "GNews: remittance Africa corridor", "priority": 2 },
-      { "url": "https://news.google.com/rss/search?q=diaspora%20fintech%20OR%20%22send%20money%22%20Africa%20Nigeria%20OR%20Kenya%20OR%20Ghana%202026&hl=en-US&gl=US&ceid=US:en", "name": "GNews: diaspora fintech", "priority": 2 },
+      { "url": "https://news.google.com/rss/search?q=diaspora%20fintech%20OR%20%22send%20money%22%20Nigeria%20OR%20Kenya%20OR%20%22South%20Africa%22%20OR%20Ghana%20OR%20Cameroon%20OR%20Zambia%20OR%20Tanzania%20OR%20Morocco%20OR%20Egypt%202026&hl=en-US&gl=US&ceid=US:en", "name": "GNews: diaspora fintech", "priority": 2 },
       { "url": "https://news.google.com/rss/search?q=%22cross-border%20payments%22%20OR%20%22cross-border%22%20Africa%20startup%202026&hl=en-US&gl=US&ceid=US:en", "name": "GNews: cross-border payments Africa", "priority": 2 },
       { "url": "https://news.google.com/rss/search?q=%22virtual%20dollar%20card%22%20OR%20%22USD%20card%22%20OR%20%22dollar%20card%22%20Africa%20startup%202026&hl=en-US&gl=US&ceid=US:en", "name": "GNews: virtual USD card Africa", "priority": 2 },
       { "url": "https://news.google.com/rss/search?q=%22virtual%20dollar%20card%22%20OR%20%22USD%20card%22%20OR%20%22dollar%20card%22%20%22Middle%20East%22%20OR%20Pakistan%20OR%20Turkey%20OR%20Bangladesh%20OR%20Lebanon%20startup%202026&hl=en-US&gl=US&ceid=US:en", "name": "GNews: virtual USD card MENA Asia", "priority": 2 },
