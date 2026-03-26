@@ -29,6 +29,13 @@ const EDITORIAL_FEEDS: { name: string; url: string }[] = [
   { name: "Future Nexus", url: "https://news.fintechnexus.com/feed/" },
   { name: "PYMNTS", url: "https://www.pymnts.com/feed/" },
   { name: "Finextra", url: "https://www.finextra.com/rss/headlines.aspx" },
+  { name: "Fintech Futures", url: "https://www.fintechfutures.com/feed/" },
+  // MENA
+  { name: "Wamda", url: "https://www.wamda.com/feed" },
+  // South Asia
+  { name: "Inc42", url: "https://inc42.com/feed/" },
+  // Latin America
+  { name: "Contxto", url: "https://contxto.com/en/feed/" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -102,8 +109,46 @@ const GOOGLE_NEWS_FEEDS: { name: string; url: string }[] = [
 
   // ── USD card issuance / USD-scarce markets ───────────────────────────────
   {
-    name: "GNews: virtual USD card USD-scarce",
+    name: "GNews: virtual USD card Africa",
     url: GN('"virtual dollar card" OR "USD card" OR "dollar card" Africa startup 2026'),
+  },
+  {
+    name: "GNews: virtual USD card MENA Asia",
+    url: GN('"virtual dollar card" OR "USD card" OR "dollar card" "Middle East" OR Pakistan OR Turkey OR Bangladesh OR Lebanon startup 2026'),
+  },
+  {
+    name: "GNews: virtual USD card LatAm",
+    url: GN('"virtual dollar card" OR "USD card" OR "dollar card" "Latin America" OR Argentina OR Venezuela OR Colombia OR Ecuador startup 2026'),
+  },
+
+  // ── MENA fintech ─────────────────────────────────────────────────────────
+  {
+    name: "GNews: MENA fintech funding",
+    url: GN('fintech startup "Middle East" OR UAE OR "Saudi Arabia" OR Egypt funding 2026'),
+  },
+  {
+    name: "GNews: MENA payments neobank",
+    url: GN('"digital wallet" OR "neobank" OR payments "Middle East" OR UAE startup 2026'),
+  },
+
+  // ── South & Southeast Asia fintech ───────────────────────────────────────
+  {
+    name: "GNews: South Asia fintech funding",
+    url: GN('fintech startup India OR Pakistan OR Bangladesh OR "Sri Lanka" funding 2026'),
+  },
+  {
+    name: "GNews: Southeast Asia fintech",
+    url: GN('fintech startup "Southeast Asia" OR Indonesia OR Philippines OR Vietnam funding 2026'),
+  },
+
+  // ── Latin America fintech ─────────────────────────────────────────────────
+  {
+    name: "GNews: LatAm fintech funding",
+    url: GN('fintech startup "Latin America" OR Brazil OR Mexico OR Colombia OR Argentina funding 2026'),
+  },
+  {
+    name: "GNews: LatAm payments remittance",
+    url: GN('payments OR remittance "Latin America" startup funding 2026'),
   },
 
   // ── Global businesses entering African currencies ─────────────────────────
