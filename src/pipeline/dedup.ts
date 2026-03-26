@@ -2,7 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { ExtractedCompany, ScoredCompany } from '../clients/gemini';
 import { SeenCompanyEntry } from '../state/state';
-import { similarityPercentage } from '../utils/levenshtein';
+import { normalizedSimilarity, normalizeCompanyName } from '../utils/levenshtein';
 import { logInfo, logWarn } from '../utils/logger';
 
 // ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ export function exclusionListFilter(
   for (const company of companies) {
     let isExcluded = false;
     for (const excluded of exclusionList) {
-      if (similarityPercentage(excluded, company.company_name) >= threshold) {
+      if (normalizedSimilarity(excluded, company.company_name) >= threshold) {
         logInfo('Exclusion list filter: removed existing customer', {
           company: company.company_name,
           matchedEntry: excluded,
@@ -81,7 +81,7 @@ export function batchPreDedup(companies: ExtractedCompany[]): ExtractedCompany[]
   const best = new Map<string, ExtractedCompany>();
 
   for (const company of companies) {
-    const key = company.company_name.trim().toLowerCase();
+    const key = normalizeCompanyName(company.company_name);
 
     if (!best.has(key)) {
       best.set(key, company);
@@ -99,7 +99,7 @@ export function batchPreDedup(companies: ExtractedCompany[]): ExtractedCompany[]
   const result: ExtractedCompany[] = [];
 
   for (const company of companies) {
-    const key = company.company_name.trim().toLowerCase();
+    const key = normalizeCompanyName(company.company_name);
     if (!seen.has(key) && best.get(key) === company) {
       seen.add(key);
       result.push(company);
@@ -147,7 +147,7 @@ export function seenCompanyFilter(
   const skipped: ExtractedCompany[] = [];
 
   for (const company of companies) {
-    const normalisedName = company.company_name.trim().toLowerCase();
+    const normalisedName = normalizeCompanyName(company.company_name);
     const isFreshEvent =
       company.event_type === 'funding_announcement' ||
       company.event_type === 'product_launch';
@@ -187,7 +187,7 @@ export function crmDedup(
     let nearSimilarity = 0;
 
     for (const existingName of existingNames) {
-      const similarity = similarityPercentage(existingName, company.company_name);
+      const similarity = normalizedSimilarity(existingName, company.company_name);
 
       if (similarity > threshold) {
         reject = true;
@@ -243,7 +243,7 @@ export function withinBatchDedup(
     let nearSimilarity = 0;
 
     for (const acceptedName of acceptedNames) {
-      const similarity = similarityPercentage(acceptedName, company.company_name);
+      const similarity = normalizedSimilarity(acceptedName, company.company_name);
 
       if (similarity > threshold) {
         reject = true;

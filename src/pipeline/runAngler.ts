@@ -9,6 +9,7 @@ import { scoreCompanies } from './score-companies';
 import { writeToCrm, writeRunLog } from './write-crm';
 import { planBudget, buildArticleQueue } from '../state/budget';
 import { batchPreDedup, exclusionListFilter, loadExclusionList, seenCompanyFilter, crmDedup, withinBatchDedup } from './dedup';
+import { normalizeCompanyName } from '../utils/levenshtein';
 import { ArticleItem } from '../clients/rss';
 import { AuditEntry, createAuditEntry, writeRunAudit } from './audit';
 import { checkAndLogIcpDrift } from '../utils/icp-drift';
@@ -317,7 +318,7 @@ export async function runAngler(): Promise<RunMetrics> {
   state.seen_companies = [
     ...state.seen_companies,
     ...toScore.map((c) => ({
-      name: c.company_name.toLowerCase().trim(),
+      name: normalizeCompanyName(c.company_name),
       seen_date: runDateIso,
     })),
   ];
