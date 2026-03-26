@@ -8,4 +8,5 @@ module.exports = {
     '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.test.json' }],
   },
   forceExit: true,
+  maxWorkers: 1,
 };

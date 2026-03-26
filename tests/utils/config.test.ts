@@ -247,10 +247,6 @@ describe('isValidProduct', () => {
     expect(isValidProduct('Payments')).toBe(true);
   });
 
-  it('returns true for "Virtual Accounts"', () => {
-    expect(isValidProduct('Virtual Accounts')).toBe(true);
-  });
-
   it('returns true for "BaaS"', () => {
     expect(isValidProduct('BaaS')).toBe(true);
   });
@@ -263,8 +259,12 @@ describe('isValidProduct', () => {
     expect(isValidProduct('Global Services')).toBe(true);
   });
 
-  it('returns true for "Business Banking"', () => {
-    expect(isValidProduct('Business Banking')).toBe(true);
+  it('returns false for "Virtual Accounts" (removed product)', () => {
+    expect(isValidProduct('Virtual Accounts')).toBe(false);
+  });
+
+  it('returns false for "Business Banking" (removed product)', () => {
+    expect(isValidProduct('Business Banking')).toBe(false);
   });
 
   it('returns true for "Digizone"', () => {
@@ -297,15 +297,15 @@ describe('isValidProduct', () => {
 });
 
 // ---------------------------------------------------------------------------
-// ANCHOR_PRODUCTS — all 7 products are valid
+// ANCHOR_PRODUCTS — 5 products (Virtual Accounts + Business Banking removed)
 // ---------------------------------------------------------------------------
 
 describe('ANCHOR_PRODUCTS', () => {
-  it('contains exactly 7 products', () => {
-    expect(ANCHOR_PRODUCTS).toHaveLength(7);
+  it('contains exactly 5 products', () => {
+    expect(ANCHOR_PRODUCTS).toHaveLength(5);
   });
 
-  it('all 7 products pass isValidProduct', () => {
+  it('all 5 products pass isValidProduct', () => {
     for (const product of ANCHOR_PRODUCTS) {
       expect(isValidProduct(product)).toBe(true);
     }
