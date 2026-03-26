@@ -1,7 +1,70 @@
+import path from 'path';
+import fs from 'fs';
 import { ExtractedCompany, ScoredCompany } from '../clients/gemini';
 import { SeenCompanyEntry } from '../state/state';
 import { similarityPercentage } from '../utils/levenshtein';
-import { logWarn } from '../utils/logger';
+import { logInfo, logWarn } from '../utils/logger';
+
+// ---------------------------------------------------------------------------
+// exclusionListFilter
+// ---------------------------------------------------------------------------
+
+/**
+ * Load the exclusion list from config/excluded-companies.json.
+ * Returns an empty array if the file is missing (graceful degradation).
+ */
+export function loadExclusionList(configDir?: string): string[] {
+  const dir = configDir ?? path.resolve(__dirname, '../../config');
+  const filePath = path.join(dir, 'excluded-companies.json');
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(raw) as string[];
+  } catch {
+    logWarn('excluded-companies.json not found or unreadable; exclusion filter disabled.', { filePath });
+    return [];
+  }
+}
+
+/**
+ * Filter out companies that are already known Anchor customers/signups.
+ * Uses Levenshtein similarity ≥ 90% (tighter than CRM dedup) since these
+ * are intentional exclusions, not fuzzy guesses.
+ *
+ * @param companies   Companies from extraction batch
+ * @param exclusionList  Names loaded from excluded-companies.json
+ * @param threshold   Similarity threshold (default 90)
+ */
+export function exclusionListFilter(
+  companies: ExtractedCompany[],
+  exclusionList: string[],
+  threshold = 90,
+): { passed: ExtractedCompany[]; filtered: ExtractedCompany[] } {
+  if (exclusionList.length === 0) return { passed: companies, filtered: [] };
+
+  const passed: ExtractedCompany[] = [];
+  const filtered: ExtractedCompany[] = [];
+
+  for (const company of companies) {
+    let isExcluded = false;
+    for (const excluded of exclusionList) {
+      if (similarityPercentage(excluded, company.company_name) >= threshold) {
+        logInfo('Exclusion list filter: removed existing customer', {
+          company: company.company_name,
+          matchedEntry: excluded,
+        });
+        isExcluded = true;
+        break;
+      }
+    }
+    if (isExcluded) {
+      filtered.push(company);
+    } else {
+      passed.push(company);
+    }
+  }
+
+  return { passed, filtered };
+}
 
 // ---------------------------------------------------------------------------
 // batchPreDedup

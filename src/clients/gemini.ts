@@ -243,7 +243,28 @@ export class GeminiClient {
             continue;
           }
 
-          // 2. Normalise fields
+          // 2. Validate website — reject if it resolves to the article's own domain
+          //    (Gemini sometimes returns the news source URL, not the company's site)
+          let verifiedWebsite: string | null = company.website ?? null;
+          if (verifiedWebsite) {
+            try {
+              const websiteDomain = new URL(verifiedWebsite).hostname.replace(/^www\./, "");
+              const articleDomain = new URL(company.source_url).hostname.replace(/^www\./, "");
+              if (websiteDomain === articleDomain) {
+                logWarn("Rejected website: same domain as article source", {
+                  company: company.company_name,
+                  website: verifiedWebsite,
+                  source: company.source_url,
+                });
+                verifiedWebsite = null;
+              }
+            } catch {
+              // Malformed URL — discard the website value
+              verifiedWebsite = null;
+            }
+          }
+
+          // 3. Normalise fields
           const normalisedCompany: ExtractedCompany = {
             ...company,
             industry: normaliseIndustry(company.industry),
@@ -251,7 +272,7 @@ export class GeminiClient {
             funding_stage: normaliseFundingStage(company.funding_stage) as FundingStage,
             articleId: batch.find((a) => a.link === company.source_url)?.id,
             articleDate: batch.find((a) => a.link === company.source_url)?.pubDate,
-            website: company.website ?? null,
+            website: verifiedWebsite,
           };
 
           allCompanies.push(normalisedCompany);

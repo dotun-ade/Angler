@@ -50,14 +50,27 @@ export async function fetchArticles(
   ];
   const articles = mergeWithQueue(queueCarryOver, freshArticles);
 
+  // Drop articles older than 1 year — stale news produces low-quality leads
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  const fresh = articles.filter((a) => {
+    if (!a.pubDate) return true; // no date = keep (can't confirm it's old)
+    const pub = new Date(a.pubDate);
+    return isNaN(pub.getTime()) || pub >= oneYearAgo;
+  });
+  const staleCount = articles.length - fresh.length;
+  if (staleCount > 0) {
+    logInfo(`Dropped ${staleCount} article(s) older than 1 year`);
+  }
+
   logInfo(
     `Articles collected: ${queueCarryOver.length} queue, ` +
     `${editorialArticles.length} editorial, ${gnewsArticles.length} GNews, ` +
-    `${serpResult.articles.length} SerpAPI — ${articles.length} total`,
+    `${serpResult.articles.length} SerpAPI — ${fresh.length} total (${staleCount} stale dropped)`,
   );
 
   return {
-    articles,
+    articles: fresh,
     state: serpResult.state,
     editorialCount: editorialArticles.length,
     gnewsCount: gnewsArticles.length,

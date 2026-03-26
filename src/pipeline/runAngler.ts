@@ -8,7 +8,7 @@ import { extractCompanies } from './extract-companies';
 import { scoreCompanies } from './score-companies';
 import { writeToCrm, writeRunLog } from './write-crm';
 import { planBudget, buildArticleQueue } from '../state/budget';
-import { batchPreDedup, seenCompanyFilter, crmDedup, withinBatchDedup } from './dedup';
+import { batchPreDedup, exclusionListFilter, loadExclusionList, seenCompanyFilter, crmDedup, withinBatchDedup } from './dedup';
 import { ArticleItem } from '../clients/rss';
 import { AuditEntry, createAuditEntry, writeRunAudit } from './audit';
 import { checkAndLogIcpDrift } from '../utils/icp-drift';
@@ -150,8 +150,19 @@ export async function runAngler(): Promise<RunMetrics> {
     }
   }
 
+  // Exclusion list filter — remove existing Anchor customers/signups before scoring
+  const exclusionList = loadExclusionList();
+  const { passed: afterExclusion, filtered: excludedCompanies } = exclusionListFilter(batchDeduped, exclusionList);
+  if (excludedCompanies.length > 0) {
+    logInfo(`Exclusion list: removed ${excludedCompanies.length} existing customer(s)`);
+    for (const c of excludedCompanies) {
+      const entry = auditMap.get(c.company_name);
+      if (entry) { entry.decision = 'rejected'; entry.reason = 'matched exclusion list (existing customer)'; }
+    }
+  }
+
   const { toScore: toScoreArr, skipped } = seenCompanyFilter(
-    batchDeduped,
+    afterExclusion,
     state.seen_companies,
     runDateIso,
   );

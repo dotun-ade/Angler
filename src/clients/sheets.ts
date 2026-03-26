@@ -118,7 +118,8 @@ export class SheetsClient {
     const today = runDateIso;
 
     const rows = companies.map((company) => {
-      const useCase = `[Angler ${today}] ${company.match_reason}. Source: ${company.source_url}`;
+      const websitePart = company.website ? ` Website: ${company.website}.` : "";
+      const useCase = `[Angler ${today}] ${company.match_reason}.${websitePart} Source: ${company.source_url}`;
       return [
         "", // A S/N
         "", // B DRI
