@@ -62,8 +62,8 @@ const GOOGLE_NEWS_FEEDS: { name: string; url: string }[] = [
     url: GN('"neobank" OR "digital bank" OR "digital wallet" Africa launch 2026'),
   },
   {
-    name: "GNews: Africa gig logistics fintech",
-    url: GN('"gig economy" OR "logistics" Africa fintech payments 2026'),
+    name: "GNews: Africa gig mobility fintech",
+    url: GN('"gig economy" OR "ride-hailing" OR "mobility" OR "fleet management" Africa fintech payments 2026'),
   },
   {
     name: "GNews: Africa virtual card",
@@ -87,11 +87,23 @@ const GOOGLE_NEWS_FEEDS: { name: string; url: string }[] = [
     name: "GNews: cross-border payments Africa",
     url: GN('"cross-border payments" OR "cross-border" Africa startup 2026'),
   },
+  {
+    name: "GNews: remittance Europe to Africa",
+    url: GN('remittance OR "money transfer" Africa Europe OR UK OR France OR Germany startup 2026'),
+  },
+  {
+    name: "GNews: remittance Asia to Africa",
+    url: GN('remittance OR "money transfer" Africa Asia OR China OR India OR UAE startup 2026'),
+  },
+  {
+    name: "GNews: remittance North America to Africa",
+    url: GN('remittance OR "money transfer" Africa "United States" OR USA OR Canada startup 2026'),
+  },
 
   // ── USD card issuance / USD-scarce markets ───────────────────────────────
   {
     name: "GNews: virtual USD card USD-scarce",
-    url: GN('"virtual dollar card" OR "USD card" Nigeria OR Ghana OR Zimbabwe OR Ethiopia 2026'),
+    url: GN('"virtual dollar card" OR "USD card" OR "dollar card" Africa startup 2026'),
   },
 
   // ── Global businesses entering African currencies ─────────────────────────
